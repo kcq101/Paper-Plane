@@ -436,8 +436,9 @@ function drawOverlay() {
   }
 }
 
-/* ---------- background: notebook paper ---------- */
-function paperTexture() {
+/* ---------- background: notebook paper (sketch look only) ---------- */
+// named apart from paperTexture(id) in 06-plane.js: all js/ files share one global scope
+function notebookBackground() {
   const c = document.createElement('canvas');
   c.width = Math.max(2, Math.floor(innerWidth * DPR)); c.height = Math.max(2, Math.floor(innerHeight * DPR));
   const x = c.getContext('2d');
@@ -470,7 +471,7 @@ skyDome.renderOrder = -10; skyDome.frustumCulled = false;
 scene.add(skyDome);
 function setBackground() {
   if (scene.background && scene.background.dispose) scene.background.dispose();
-  scene.background = look ? new THREE.Color(FOG_COL) : paperTexture();
+  scene.background = look ? new THREE.Color(FOG_COL) : notebookBackground();
   skyDome.visible = !!look;
 }
 function setLook(v) {
@@ -521,14 +522,15 @@ $('lookBtn').addEventListener('click', () => { Sfx.init(); Sfx.scratch(); setLoo
 /* ---------- resize ---------- */
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
-  renderer.setPixelRatio(DPR);
+  const sd = sceneDPR(); // 3D pixel ratio (lowered by the quality governor); the HUD overlay keeps DPR
+  renderer.setPixelRatio(sd);
   renderer.setSize(innerWidth, innerHeight, false);
   camera.aspect = innerWidth / innerHeight;
   camera.fov = camera.aspect < 0.8 ? 70 : 60;
   camera.updateProjectionMatrix();
   ov.width = innerWidth * DPR; ov.height = innerHeight * DPR;
-  shared.uPx.value = DPR;
-  shared.uRes.value.set(innerWidth * DPR, innerHeight * DPR);
+  shared.uPx.value = sd;
+  shared.uRes.value.set(innerWidth * sd, innerHeight * sd);
   if (typeof makeTarget === 'function' && postU) makeTarget();
   setBackground();
 }

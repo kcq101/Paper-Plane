@@ -13,8 +13,19 @@ const cv = $('game'), ov = $('overlay'), octx = ov.getContext('2d');
 
 /* ---------- renderer & scene ---------- */
 let DPR = Math.min(window.devicePixelRatio || 1, 2);
-const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
-renderer.setPixelRatio(DPR);
+// Quality tiers for the adaptive governor in 11-render-boot.js. Tier 0 is full quality; slower phones step
+// down: the 3D scene renders at a fraction of the screen's pixel ratio (the HUD stays sharp), then the
+// shadow map halves. `?q=0..3` in the URL pins a tier; `?fps` shows a small frame-rate readout.
+const QTIERS = [{ rs: 1, sh: 4096 }, { rs: 0.85, sh: 4096 }, { rs: 0.75, sh: 2048 }, { rs: 0.62, sh: 2048 }];
+const URLQ = (typeof location !== 'undefined' && location.search) || '';
+const QPARAM = /[?&]q=([0-3])/.exec(URLQ);
+let qTier = QPARAM ? +QPARAM[1] : 0;
+// pixel ratio the 3D scene renders at (never below 1 unless the screen itself is below 1)
+const sceneDPR = () => Math.max(Math.min(DPR, 1), DPR * QTIERS[qTier].rs);
+// antialias off: the scene renders into an offscreen target and the canvas only ever shows one full-screen
+// post-processing quad, so canvas MSAA cost memory and bandwidth for nothing
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(sceneDPR());
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 let look = 1; // Ink + flat color, tuned in the Look Lab (the old pencil look stays in code but is switched off)
@@ -25,7 +36,7 @@ scene.fog = new THREE.Fog(PAPER, FOG_NEAR, FOG_FAR);
 const camera = new THREE.PerspectiveCamera(62, 1, 0.25, 3000);
 
 const shared = {
-  uPx: { value: DPR }, uFogNear: { value: FOG_NEAR }, uFogFar: { value: FOG_FAR },
+  uPx: { value: sceneDPR() }, uFogNear: { value: FOG_NEAR }, uFogFar: { value: FOG_FAR },
   uInk: { value: INK }, uPaper: { value: PAPER },
   uLight: { value: new THREE.Vector3(0.311, 0.809, -0.498).normalize() }, // sun: 54° high, ahead and to the right
   uBoil: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) }, uLook: { value: look }
@@ -40,8 +51,9 @@ const hemi = new THREE.HemisphereLight('#ffffff', new THREE.Color(LAWN).lerp(new
 const sunLight = new THREE.DirectionalLight('#fff7ea', 0.9);
 // one shadow map for the whole yard, drawn once, so shadows never pop in
 sunLight.castShadow = true;
-const SHADOW_RES = Math.min(4096, renderer.capabilities.maxTextureSize || 2048);
-sunLight.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
+const SHADOW_MAX = Math.min(4096, renderer.capabilities.maxTextureSize || 2048);
+const shadowRes = () => Math.min(SHADOW_MAX, QTIERS[qTier].sh);
+sunLight.shadow.mapSize.set(shadowRes(), shadowRes());
 Object.assign(sunLight.shadow.camera, { left: -260, right: 260, top: 260, bottom: -260, near: 1, far: 700 });
 sunLight.shadow.bias = -0.0006; sunLight.shadow.normalBias = 0.05;
 sunLight.target.position.set(0, 0, -115);

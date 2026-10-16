@@ -34,6 +34,18 @@ Kevin's feedback so far:
 - Objects need contact shading so they don't look like they float.
 - He prefers concrete options and iterates quickly; ask before big art changes.
 
+## Performance (phones)
+- The scene renders into an offscreen target at `sceneDPR()`; the canvas only shows the post quad, so it has
+  no MSAA. The HUD overlay canvas always uses full `DPR`.
+- Quality governor (`governor` in `11-render-boot.js`): every 90 frames it takes the median frame time; above
+  21 ms it steps one tier down `QTIERS` (render scale 1 → 0.85 → 0.75 + 2048 shadow map → 0.62). Never steps
+  back up within a session. Outline width, hatching and grain stay in screen pixels at every tier.
+- URL switches: `?q=0..3` pins a tier, `?fps` shows a frame-rate / tier readout (bottom-left).
+- Paper grain is baked once into a 512 px tiling texture (`grainTex`); the paint-wash warp (`LOOK.water`) is
+  compiled out with `#if WATER` while it's 0.
+- All js/ files share one global scope: never reuse a top-level name across files (a duplicate
+  `paperTexture` once silently replaced the plane's notebook paper with a plain sheet).
+
 ## Testing and publishing
 - `node tools/smoke-test.js` runs the real game code against a stubbed browser/three.js and plays
   simulated throws in both worlds plus hangar actions. It checks logic only, not visuals. Run it after
@@ -44,5 +56,5 @@ Kevin's feedback so far:
 
 ## Ideas queued (from Kevin's list)
 Updraft surfing (skim walls for lift + bonus), collectibles (paper stars), gust bursts, daily challenges,
-ghost replay of best flight, landing targets, photo mode, weather/time of day. Performance pass:
-smaller shadow map on phones, cap DPR, cheaper outline, merge harbor clutter, upgrade three.js.
+ghost replay of best flight, landing targets, photo mode, weather/time of day. Performance leftovers (only if
+phones still struggle): merge harbor clutter (~270 draw calls), upgrade three.js.

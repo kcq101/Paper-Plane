@@ -62,5 +62,18 @@ const saved = JSON.parse(mem['ppb-hangar'] || '[]');
 const hangarOk = made.startsWith('My plane') && saved.length === 1;
 if (!hangarOk) failures++;
 console.log(`${hangarOk ? 'ok ' : 'FAIL'} new + copy + delete -> ${saved.length} saved design(s); flying: ${els.hangarBtn.textContent}`);
+console.log('\n== Quality governor');
+{
+  const g = s => vm.runInThisContext(s);
+  const t0 = g('qTier'); let now = 10000;
+  for (let i = 0; i < 95; i++) g(`governor(${now += 16}, 16)`); // steady 60 fps: stays put
+  const t1 = g('qTier');
+  for (let i = 0; i < 95; i++) g(`governor(${now += 30}, 30)`); // ~33 fps: one step down
+  const t2 = g('qTier');
+  const ok = t0 === 0 && t1 === 0 && t2 === 1 && g('sceneDPR()') < 2;
+  if (!ok) failures++;
+  console.log(`${ok ? 'ok ' : 'FAIL'} 60fps keeps tier ${t1}; 33fps steps to tier ${t2} (scene ${g('sceneDPR()').toFixed(2)}x, shadow ${g('shadowRes()')})`);
+  g('setQuality(0)');
+}
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed');
 process.exit(failures ? 1 : 0);

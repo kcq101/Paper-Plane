@@ -53,7 +53,7 @@ button:focus-visible{outline:3px dashed var(--ballpoint);outline-offset:3px}
   font-size:2.6rem;color:var(--red-pencil);pointer-events:none;white-space:nowrap}
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 205px);transform:translateX(-50%) rotate(-1.5deg);
   font-family:var(--display);font-weight:700;font-size:1.35rem;color:var(--ink);background:#fff6c9;border:2px solid var(--ink);
-  border-radius:var(--sketch-radius);padding:4px 14px;pointer-events:none;white-space:nowrap;max-width:calc(100% - 32px);
+  border-radius:var(--sketch-radius);padding:4px 14px;pointer-events:none;width:max-content;max-width:calc(100% - 32px);text-align:center;line-height:1.2;
   transition:opacity .35s, transform .35s}
 .toast.off{opacity:0;transform:translateX(-50%) translateY(-8px) rotate(-1.5deg)}
 
