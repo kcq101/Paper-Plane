@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Paper Planes Look Lab</title>
+<style>*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}</style>
+</head>
+<body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kalam:wght@700&family=Patrick+Hand&display=swap">
+<style>
+/* Style bench, round 2: the canyon reveal moment on top, style picker + tuning sliders below */
+:root{
+  --paper:#f7f5ef;
+  --ink:#2a2a30;
+  --ballpoint:#2b4fbf;
+  --rule:#d7e1ee;
+  --muted:#73737c;
+  --card:#fffef9;
+  --display:"Kalam","Patrick Hand","Comic Sans MS",cursive;
+  --hand:"Patrick Hand","Kalam","Comic Sans MS",cursive;
+  --sketch-radius:255px 15px 225px 15px/15px 225px 15px 255px;
+  color-scheme:light;
+}
+html,body{height:100%;margin:0;background:var(--paper);color:var(--ink);font-family:var(--hand);overflow:hidden;-webkit-tap-highlight-color:transparent}
+.app{height:100%;display:flex;flex-direction:column}
+.stage{position:relative;flex:0 0 52%;min-height:0;transition:flex-basis .3s}
+.app.full .stage{flex-basis:100%}
+#view{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.tag{position:absolute;left:max(12px,env(safe-area-inset-left,0px));bottom:12px;right:84px;pointer-events:none;display:flex;flex-direction:column;gap:2px}
+.tag b{font-family:var(--display);font-size:1.45rem;line-height:1;color:var(--ink);text-shadow:0 0 6px rgba(255,255,255,.95),0 0 2px #fff}
+.tag span{font-size:1rem;color:var(--ink);text-shadow:0 0 6px rgba(255,255,255,.95),0 0 2px #fff;max-width:36ch}
+.fullbtn{position:absolute;right:max(12px,env(safe-area-inset-right,0px));bottom:12px;font-family:var(--hand);font-size:1rem;
+  background:var(--card);color:var(--ballpoint);border:2px solid var(--ballpoint);border-radius:var(--sketch-radius);padding:4px 10px;cursor:pointer}
+.hintdrag{position:absolute;top:10px;left:50%;transform:translateX(-50%);font-size:.95rem;color:var(--ink);
+  background:rgba(255,254,249,.85);padding:2px 10px;border-radius:999px;pointer-events:none;white-space:nowrap}
+.panel{flex:1 1 auto;min-height:0;overflow-y:auto;border-top:2px solid var(--ink);background:var(--card);
+  background-image:repeating-linear-gradient(to bottom,transparent 0 31px,var(--rule) 31px 32px);
+  padding-block:10px calc(env(safe-area-inset-bottom,0px) + 16px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:12px}
+.panel>*{flex-shrink:0}
+.app.full .panel{display:none}
+.styles{display:flex;flex-wrap:wrap;gap:8px}
+.styles button{font-family:var(--hand);font-size:1.05rem;color:var(--ink);background:var(--card);
+  border:2px solid var(--ink);border-radius:var(--sketch-radius);padding:5px 12px;cursor:pointer}
+.styles button[aria-pressed="true"]{background:var(--ballpoint);color:#fff}
+.sliders{display:grid;grid-template-columns:1fr;gap:6px}
+.row{display:grid;grid-template-columns:7.4em 1fr 3.6em;align-items:center;gap:10px;font-size:1.05rem}
+.row output{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--ballpoint);min-width:0}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.actions button{font-family:var(--display);font-size:1.1rem;border:2px solid var(--ink);border-radius:var(--sketch-radius);padding:6px 16px;cursor:pointer}
+.copy{background:var(--ballpoint);color:#fff}
+.reset{background:var(--card);color:var(--ink)}
+.note{font-size:1rem;color:var(--muted);margin:0}
+#copyText{width:100%;font-family:ui-monospace,monospace;font-size:.8rem;border:1px dashed var(--muted);background:#fff;padding:6px;box-sizing:border-box}
+button:focus-visible,input:focus-visible{outline:3px dashed var(--ballpoint);outline-offset:2px}
+</style>
+
+<div class="app" id="app">
+  <div class="stage">
+    <canvas id="view" aria-label="The canyon reveal moment rendered in the selected art style. Drag to look around."></canvas>
+    <div class="hintdrag" id="hintdrag">Drag to look around</div>
+    <div class="tag"><b id="styleName"></b><span id="styleDesc"></span></div>
+    <button class="fullbtn" id="fullBtn" type="button">Full view</button>
+  </div>
+  <div class="panel">
+    <div class="styles" id="styles" role="group" aria-label="Art style"></div>
+    <div class="sliders">
+      <label class="row" for="sOutline">Outline <input id="sOutline" type="range" min="0" max="3" step="0.1"><output id="oOutline"></output></label>
+      <label class="row" for="sHatch">Pencil shading <input id="sHatch" type="range" min="0" max="1" step="0.05"><output id="oHatch"></output></label>
+      <label class="row" for="sSat">Color <input id="sSat" type="range" min="0.3" max="1.5" step="0.05"><output id="oSat"></output></label>
+      <label class="row" for="sSteps">Shading <input id="sSteps" type="range" min="2" max="5" step="1"><output id="oSteps"></output></label>
+      <label class="row" for="sSun">Time of day <input id="sSun" type="range" min="6" max="70" step="1"><output id="oSun"></output></label>
+      <label class="row" for="sHaze">Depth haze <input id="sHaze" type="range" min="0" max="1" step="0.05"><output id="oHaze"></output></label>
+      <label class="row" for="sGrain">Paper grain <input id="sGrain" type="range" min="0" max="1" step="0.05"><output id="oGrain"></output></label>
+    </div>
+    <div class="actions">
+      <button class="copy" id="copyBtn" type="button">Copy my settings</button>
+      <button class="reset" id="resetBtn" type="button">Reset this style</button>
+    </div>
+    <textarea id="copyText" rows="3" readonly hidden></textarea>
+    <p class="note">Same flow as before: pick the closest style, tune it, tap Copy and paste it in our chat. Mixing is fine too, e.g. "Golden hour light with Sketchbook colors".</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const D2R = Math.PI / 180;
+
+/* ---------- styles ---------- */
+const STYLES = [
+  { id: 'golden', name: 'Golden hour', desc: 'Low warm sun, long shadows down the canyon walls, warm haze for depth. Soft shading, light ink.',
+    set: { outline: 0.9, hatch: 0.1, sat: 1.05, steps: 5, sun: 12, haze: 0.62, grain: 0.15 },
+    pal: { sky: ['#6f9ccb', '#f7cf9c'], fog: '#efc9a2', lawn: '#8dae5e', hedge: '#5f8a3e', leaf: '#6f9a45', trunk: '#7a5a3e', strata: ['#e3a061', '#c9783f', '#b05a36', '#e8b67c'],
+      top: '#d8b06e', floor: '#d29a62', river: '#6fa9c2', ink: '#3a2a22', ring: '#f2b928', bird: '#3a3036' } },
+  { id: 'ink', name: 'Clean ink', desc: "Today's look, calmed down: crisp outlines, pencil only in the deepest shadows, cool daylight.",
+    set: { outline: 1.3, hatch: 0.25, sat: 1.0, steps: 3, sun: 45, haze: 0.42, grain: 0.15 },
+    pal: { sky: ['#9fcbea', '#eef6fb'], fog: '#dfeaf2', lawn: '#8fba6c', hedge: '#57924a', leaf: '#76b052', trunk: '#86674a', strata: ['#e3a46e', '#d0804f', '#b9603f', '#e8bf8a'],
+      top: '#cdb27a', floor: '#d8a774', river: '#7cc0dc', ink: '#26262c', ring: '#f2b928', bird: '#3e3e46' } },
+  { id: 'sketch', name: 'Sketchbook', desc: 'Mostly paper and graphite. Color is saved for what matters: the plane, rings and birds.',
+    set: { outline: 1.5, hatch: 0.55, sat: 1.0, steps: 3, sun: 40, haze: 0.5, grain: 0.4 },
+    pal: { sky: ['#efece2', '#fbfaf4'], fog: '#f6f3ea', lawn: '#d2dbbd', hedge: '#bccaa1', leaf: '#c6d3aa', trunk: '#cdb99e', strata: ['#ecdcc6', '#e3cdb3', '#d9bfa2', '#f0e4d2'],
+      top: '#eadfc8', floor: '#e5d4bb', river: '#cadde7', ink: '#3a3a40', ring: '#f2b928', bird: '#3a3a40' } },
+  { id: 'gouache', name: 'Painted gouache', desc: 'No outlines. Soft painted light, deep blue-violet haze, big sense of scale.',
+    set: { outline: 0, hatch: 0, sat: 1.05, steps: 5, sun: 22, haze: 0.75, grain: 0.3 },
+    pal: { sky: ['#6a9bd0', '#f1d9c6'], fog: '#d9d1d6', lawn: '#93b46a', hedge: '#5e8c4a', leaf: '#7aa557', trunk: '#7d5d45', strata: ['#d98e5a', '#c06f45', '#a3553b', '#e4b07a'],
+      top: '#c9a06a', floor: '#c98d5f', river: '#5f9fc4', ink: '#3a2a26', ring: '#f5c04a', bird: '#3a3036' } },
+  { id: 'paper', name: 'Papercraft', desc: 'Faceted shapes cut from colored card, two clean tones, distance in lighter layers.',
+    set: { outline: 0.8, hatch: 0, sat: 1.0, steps: 2, sun: 35, haze: 0.35, grain: 0.3 }, flat: true,
+    pal: { sky: ['#8fc0e0', '#f6e9d4'], fog: '#efe4d4', lawn: '#86b65f', hedge: '#4f8f3e', leaf: '#6eae4c', trunk: '#8c6a48', strata: ['#f0a868', '#d97b48', '#bb5a3a', '#f5c78f'],
+      top: '#e2bd7d', floor: '#e0a46c', river: '#5aa9e3', ink: '#4b3f33', ring: '#f2c14e', bird: '#3e3e46' } }
+];
+let cur = STYLES[0];
+const tuned = {};
+STYLES.forEach(s => { tuned[s.id] = Object.assign({}, s.set); });
+const P = () => tuned[cur.id];
+
+/* ---------- renderer + target with depth (for silhouette outlines) ---------- */
+const cv = $('view');
+let DPR = Math.min(window.devicePixelRatio || 1, 2);
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false });
+renderer.setPixelRatio(DPR);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
+let rt = null;
+function makeTarget(w, h) {
+  if (rt) { rt.depthTexture.dispose(); rt.dispose(); }
+  rt = new THREE.WebGLRenderTarget(w, h);
+  rt.depthTexture = new THREE.DepthTexture(w, h);
+  rt.depthTexture.type = THREE.UnsignedIntType;
+}
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2('#ffffff', 0.001);
+const camera = new THREE.PerspectiveCamera(58, 1, 0.3, 4000);
+
+const hemi = new THREE.HemisphereLight('#ffffff', '#ffffff', 0.55);
+const sun = new THREE.DirectionalLight('#ffffff', 0.8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -560, right: 560, top: 620, bottom: -620, near: 10, far: 3000 });
+sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.6;
+scene.add(hemi, sun, sun.target);
+
+/* ---------- materials: toon tones + optional pencil hatching in the shadows ---------- */
+const litMax = { value: 1.35 }, hatchU = { value: 0 }, pxU = { value: DPR };
+const PENCIL = `
+float pLumO = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
+float pLumD = max(0.001, dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)));
+float pShade = pLumO / (pLumD * uLitMax);
+vec2 pHp = gl_FragCoord.xy / uHatchPx;
+float pH1 = 1.0 - smoothstep(0.35, 1.0, abs(fract((pHp.x + pHp.y) / 5.0) - 0.5) * 5.0);
+float pH2 = 1.0 - smoothstep(0.35, 1.0, abs(fract((pHp.x - pHp.y) / 5.0) - 0.5) * 5.0);
+float pInk = (pH1 * smoothstep(0.8, 0.62, pShade) * 0.6 + pH2 * smoothstep(0.55, 0.42, pShade) * 0.5) * uHatch;
+gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.4, 0.4, 0.44), clamp(pInk, 0.0, 0.75));`;
+let gradTex = null;
+function gradientMap(steps) {
+  if (gradTex) gradTex.dispose();
+  const n = steps >= 5 ? 32 : steps;
+  const d = new Uint8Array(n);
+  for (let i = 0; i < n; i++) d[i] = Math.round(255 * (n === 1 ? 1 : 0.4 + 0.6 * i / (n - 1)));
+  gradTex = new THREE.DataTexture(d, n, 1, THREE.LuminanceFormat);
+  gradTex.minFilter = gradTex.magFilter = steps >= 5 ? THREE.LinearFilter : THREE.NearestFilter;
+  gradTex.needsUpdate = true;
+  return gradTex;
+}
+function mat(o) {
+  const m = new THREE.MeshToonMaterial(o);
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uHatch = hatchU; sh.uniforms.uLitMax = litMax; sh.uniforms.uHatchPx = pxU;
+    sh.fragmentShader = 'uniform float uHatch;\nuniform float uLitMax;\nuniform float uHatchPx;\n' + sh.fragmentShader.replace('#include <tonemapping_fragment>', PENCIL + '\n#include <tonemapping_fragment>');
+  };
+  return m;
+}
+const parts = []; // { mesh, role, side, noFlat }
+function add(geom, role, x = 0, y = 0, z = 0, o = {}) {
+  const m = new THREE.Mesh(geom, new THREE.MeshBasicMaterial());
+  m.position.set(x, y, z); m.castShadow = o.cast !== false; m.receiveShadow = true;
+  scene.add(m); parts.push({ mesh: m, role, side: o.side, noFlat: o.noFlat });
+  return m;
+}
+function merge(geoms) {
+  const pos = [], nor = [];
+  geoms.forEach(g => { const n = g.index ? g.toNonIndexed() : g; const pa = n.attributes.position.array, na = n.attributes.normal.array; for (let i = 0; i < pa.length; i++) { pos.push(pa[i]); nor.push(na[i]); } });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  return g;
+}
+const polar = (r, deg) => ({ x: r * Math.sin(deg * D2R), z: -r * Math.cos(deg * D2R) });
+
+/* ---------- the world at the canyon edge (same layout as the game) ---------- */
+const RIM_R = 244, HEDGE_R = 240, FLOOR = -270;
+const MESAS = [[230, -15, 38, 78, -60], [300, 30, 55, 95, -25], [420, -45, 45, 85, -85], [480, 8, 16, 38, -8], [560, -20, 60, 110, -40],
+  [620, 50, 40, 80, -15], [700, -5, 30, 62, -70], [380, 70, 35, 70, -50], [360, -72, 40, 75, -30], [820, 30, 50, 90, -35], [900, -40, 60, 100, -55]]
+  .map(([r, a, R1, R2, top]) => Object.assign(polar(r + 120, a), { R1, R2, top }));
+const terr01 = t => { const n = 5, k = Math.min(t, 0.99999) * n, f = Math.floor(k); return t >= 1 ? 1 : (f + Math.pow(k - f, 5)) / n; };
+const riverX = z => 110 * Math.sin(-z * 0.0042 + 0.6) + 35 * Math.sin(-z * 0.013);
+function canyonH(x, z) {
+  const r = Math.hypot(x, z);
+  if (r < RIM_R) return 0;
+  let h = FLOOR * terr01(Math.min(1, (r - RIM_R) / 44));
+  h = Math.max(h, FLOOR + (70 - FLOOR) * terr01(Math.max(0, Math.min(1, (r - 1120) / 150))));
+  for (const m of MESAS) { const d = Math.hypot(x - m.x, z - m.z); if (d < m.R2) h = Math.max(h, FLOOR + (m.top - FLOOR) * terr01((m.R2 - d) / (m.R2 - m.R1))); }
+  if (h < FLOOR + 1) h += Math.sin(x * 0.02) * Math.cos(z * 0.017) * 3;
+  if (z < -(RIM_R + 16)) { const d = Math.abs(x - riverX(z)); if (d < 34) h = Math.min(h, FLOOR - 4 + (h - FLOOR + 4) * Math.min(1, Math.max(0, (d - 14) / 20))); }
+  return h;
+}
+// terrain
+const TN = 220, TW = 1500, TD = 1350, TCZ = -870;
+const terrGeom = new THREE.PlaneGeometry(TW, TD, TN, TN).rotateX(-Math.PI / 2).translate(0, 0, TCZ);
+const tpos = terrGeom.attributes.position.array, TH = new Float32Array(tpos.length / 3), TSLOPE = new Float32Array(tpos.length / 3);
+for (let k = 0; k < TH.length; k++) { TH[k] = canyonH(tpos[k * 3], tpos[k * 3 + 2]); tpos[k * 3 + 1] = TH[k]; }
+{ const N = TN + 1; for (let k = 0; k < TH.length; k++) { const ix = k % N, iz = Math.floor(k / N); let m = 0;
+  [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([a, b]) => { const jx = ix + a, jz = iz + b; if (jx >= 0 && jz >= 0 && jx < N && jz < N) m = Math.max(m, Math.abs(TH[jz * N + jx] - TH[k])); }); TSLOPE[k] = m; } }
+terrGeom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(tpos.length), 3));
+terrGeom.computeVertexNormals();
+const terrain = add(terrGeom, 'terrain', 0, 0, 0, { cast: true });
+const NOISE = Float32Array.from({ length: TH.length }, () => 0.96 + Math.random() * 0.06);
+function colorTerrain(pal) {
+  const c = terrGeom.attributes.color.array, lawn = new THREE.Color(pal.lawn), top = new THREE.Color(pal.top), fl = new THREE.Color(pal.floor);
+  const st = pal.strata.map(h => new THREE.Color(h));
+  for (let k = 0; k < TH.length; k++) {
+    const x = tpos[k * 3], z = tpos[k * 3 + 2], h = TH[k];
+    let col;
+    if (Math.hypot(x, z) < RIM_R - 1) col = lawn;
+    else if (h < FLOOR + 2) col = fl;
+    else if (TSLOPE[k] < 2.5) col = top;
+    else col = st[Math.abs(Math.floor((h - FLOOR) / 13)) % st.length];
+    c[k * 3] = col.r * NOISE[k]; c[k * 3 + 1] = col.g * NOISE[k]; c[k * 3 + 2] = col.b * NOISE[k];
+  }
+  terrGeom.attributes.color.needsUpdate = true;
+}
+// yard behind the camera, so looking around still shows lawn
+add(new THREE.CircleGeometry(RIM_R - 2, 96).rotateX(-Math.PI / 2).translate(0, -0.05, 0), 'lawn', 0, 0, 0, { cast: false });
+// river
+{
+  const rp = [];
+  for (let z = -(RIM_R + 26); z > -1450; z -= 12) { const x = riverX(z), x2 = riverX(z - 12), y = FLOOR - 2.5; rp.push(x - 9, y, z, x2 - 9, y, z - 12, x + 9, y, z, x + 9, y, z, x2 - 9, y, z - 12, x2 + 9, y, z - 12); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3)); g.computeVertexNormals();
+  add(g, 'river', 0, 0, 0, { cast: false, side: THREE.DoubleSide, noFlat: true });
+}
+// hedge along the rim, a couple of trees in the yard
+{
+  const h = [];
+  for (let a = -40; a <= 40; a += 1.1) { const r = HEDGE_R + (Math.random() - 0.5) * 0.8, p = polar(r, a); h.push(new THREE.IcosahedronGeometry(2.3, 1).scale(1.25, 0.95, 1.1).rotateY(-a * D2R).translate(p.x, 1.45, p.z)); }
+  add(merge(h), 'hedge');
+}
+function tree(x, z, s) {
+  add(new THREE.CylinderGeometry(0.32 * s, 0.5 * s, 4.8 * s, 10).translate(0, 2.4 * s, 0), 'trunk', x, 0, z);
+  add(new THREE.IcosahedronGeometry(3.6 * s, 2).scale(1, 0.9, 1).translate(0, 6.7 * s, 0), 'leaf', x, 0, z);
+  add(new THREE.IcosahedronGeometry(2.2 * s, 2).translate(2.4 * s, 5.5 * s, 1.4 * s), 'leaf', x, 0, z);
+  add(new THREE.IcosahedronGeometry(2.0 * s, 2).translate(-2.2 * s, 5.8 * s, 0.8 * s), 'leaf', x, 0, z);
+}
+tree(-26, -205, 1.2); tree(34, -196, 1.1); tree(-60, -224, 1);
+// rings dropping into the canyon
+const ringGeom = new THREE.TorusGeometry(2.6, 0.2, 12, 48);
+[[0, 12, -262], [5, 3, -300], [-3, -6, -345]].forEach(([x, y, z]) => add(ringGeom, 'ring', x, y, z, { cast: false, noFlat: true }));
+// birds near the second ring
+const wingGeom = new THREE.BufferGeometry();
+wingGeom.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, -0.12, 0, 0, 0.18, 0.75, 0.02, 0.06], 3)); wingGeom.computeVertexNormals();
+const birds = [];
+for (let i = 0; i < 3; i++) {
+  const g = new THREE.Group();
+  const body = add(new THREE.SphereGeometry(1, 10, 8).scale(0.13, 0.11, 0.38), 'bird', 0, 0, 0, { cast: false, noFlat: true });
+  const L = add(wingGeom, 'bird', 0, 0, 0, { cast: false, side: THREE.DoubleSide, noFlat: true });
+  const R = add(wingGeom, 'bird', 0, 0, 0, { cast: false, side: THREE.DoubleSide, noFlat: true }); R.scale.x = -1;
+  [body, L, R].forEach(m => { scene.remove(m); g.add(m); });
+  g.scale.setScalar(1.5); scene.add(g);
+  birds.push({ g, L, R, ph: i * 2.1, r: 8 + i * 2, y: 4 + i * 1.2 });
+}
+// the plane
+const planeTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
+  x.fillStyle = '#f3f1e8'; x.fillRect(0, 0, 256, 256);
+  x.strokeStyle = '#5b86cf'; x.lineWidth = 4; for (let y = 14; y < 256; y += 24) { x.beginPath(); x.moveTo(0, y); x.lineTo(256, y); x.stroke(); }
+  x.strokeStyle = '#d65f56'; x.lineWidth = 4; x.beginPath(); x.moveTo(180, 0); x.lineTo(180, 256); x.stroke();
+  x.strokeStyle = 'rgba(40,40,50,0.5)'; x.lineWidth = 3; x.beginPath(); x.moveTo(128, 0); x.lineTo(128, 256); x.stroke();
+  return new THREE.CanvasTexture(c);
+})();
+const plane = new THREE.Group();
+{
+  const N = [0, 0, -0.5], T = [0, 0, 0.5], L = [-0.42, 0.15, 0.45], R = [0.42, 0.15, 0.45], K = [0, -0.14, 0.45];
+  const raw = [...N, ...L, ...T, ...N, ...T, ...R, ...N, ...K, ...T];
+  const uv = []; for (let i = 0; i < raw.length; i += 3) uv.push(raw[i] / 0.84 + 0.5, raw[i + 2] + 0.5);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(raw.map(v => v * 0.7), 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  const m = add(g, 'plane', 0, 0, 0, { side: THREE.DoubleSide, noFlat: true });
+  scene.remove(m); plane.add(m);
+}
+scene.add(plane);
+// sky dome + sun disc
+const skyU = { uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uSunDir: { value: new THREE.Vector3() }, uSunCol: { value: new THREE.Color() } };
+const sky = new THREE.Mesh(new THREE.SphereGeometry(3500, 32, 16), new THREE.ShaderMaterial({
+  uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
+  vertexShader: `varying vec3 vD;void main(){vD=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader: `uniform vec3 uTop;uniform vec3 uHor;uniform vec3 uSunDir;uniform vec3 uSunCol;varying vec3 vD;
+void main(){float h=clamp(vD.y,0.0,1.0);vec3 c=mix(uHor,uTop,pow(h,0.55));
+float s=max(dot(normalize(vD),uSunDir),0.0);c+=uSunCol*(pow(s,700.0)*1.2+pow(s,12.0)*0.18);
+if(vD.y<0.0)c=uHor;gl_FragColor=vec4(c,1.0);}`
+}));
+scene.add(sky);
+// a few soft clouds
+const clouds = [];
+{
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128; const x = c.getContext('2d');
+  [[0.28, 0.62, 0.22], [0.47, 0.46, 0.3], [0.68, 0.58, 0.24], [0.38, 0.68, 0.2], [0.58, 0.7, 0.2], [0.8, 0.68, 0.15]].forEach(([bx, by, r]) => {
+    const g = x.createRadialGradient(bx * 256, by * 128 - r * 38, r * 26, bx * 256, by * 128, r * 147);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.8, 'rgba(250,250,252,0.95)'); g.addColorStop(1, 'rgba(240,244,250,0)');
+    x.fillStyle = g; x.beginPath(); x.arc(bx * 256, by * 128, r * 147, 0, Math.PI * 2); x.fill();
+  });
+  const t = new THREE.CanvasTexture(c);
+  [[-500, 260, -1900, 520], [380, 330, -2100, 600], [900, 200, -1600, 380], [-1100, 300, -1500, 460]].forEach(([px, py, pz, s]) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, fog: false }));
+    sp.position.set(px, py, pz); sp.scale.set(s, s / 2, 1); scene.add(sp); clouds.push(sp);
+  });
+}
+
+/* ---------- post: silhouette outlines from depth, color, grain ---------- */
+const postU = { tColor: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uNear: { value: camera.near }, uFar: { value: camera.far },
+  uThick: { value: 1 }, uInk: { value: new THREE.Color() }, uFogD: { value: 0.001 }, uSat: { value: 1 }, uGrain: { value: 0 } };
+const post = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+  uniforms: postU, depthTest: false, depthWrite: false,
+  vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
+  fragmentShader: `uniform sampler2D tColor;uniform sampler2D tDepth;uniform vec2 uRes;uniform float uNear;uniform float uFar;uniform float uThick;uniform vec3 uInk;uniform float uFogD;uniform float uSat;uniform float uGrain;varying vec2 vUv;
+float lin(vec2 uv){float d=texture2D(tDepth,uv).x;float z=d*2.0-1.0;return 2.0*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),u.x),u.y);}
+void main(){vec3 c=texture2D(tColor,vUv).rgb;
+if(uThick>0.05){vec2 o=uThick/uRes;float l=lin(vUv);
+ float ln=lin(vUv+vec2(0.0,o.y)),ls=lin(vUv-vec2(0.0,o.y)),le=lin(vUv+vec2(o.x,0.0)),lw=lin(vUv-vec2(o.x,0.0));
+ float lap=abs(ln+ls+le+lw-4.0*l)/l;
+ float e=smoothstep(0.035,0.09,lap);
+ float fade=exp(-pow(l*uFogD*0.9,2.0));
+ c=mix(c,uInk,e*0.9*fade);}
+float g=dot(c,vec3(0.299,0.587,0.114));c=mix(vec3(g),c,uSat);
+vec2 sp=vUv*uRes;float pap=noise(sp/2.4)*0.6+noise(sp/9.0)*0.4;
+c*=1.0-uGrain*0.09*pap;c+=(hash(sp)-0.5)*0.04*uGrain;
+float d=distance(vUv,vec2(0.5,0.47));c*=1.0-0.16*uGrain*smoothstep(0.45,0.95,d);
+gl_FragColor=vec4(c,1.0);}`
+}));
+const postScene = new THREE.Scene(); postScene.add(post);
+const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+/* ---------- apply ---------- */
+const STEP_NAMES = ['', '', '2 tones', '3 tones', '4 tones', 'Smooth'];
+function setSun(elev) {
+  const az = 32 * D2R, e = elev * D2R;
+  const dir = new THREE.Vector3(Math.sin(az) * Math.cos(e), Math.sin(e), -Math.cos(az) * Math.cos(e)).normalize();
+  sun.target.position.set(0, -120, -720);
+  sun.position.copy(sun.target.position).addScaledVector(dir, 1400);
+  const k = clamp((elev - 6) / 44, 0, 1);
+  sun.color.set('#ffa860').lerp(new THREE.Color('#fff7ea'), k);
+  sun.intensity = 0.62 + 0.28 * k;
+  hemi.intensity = 0.42 + 0.2 * k;
+  litMax.value = sun.intensity + hemi.intensity;
+  skyU.uSunDir.value.copy(dir); skyU.uSunCol.value.copy(sun.color);
+  renderer.shadowMap.needsUpdate = true;
+}
+function applyStyle(rebuild = true) {
+  const s = cur, p = P(), pal = s.pal;
+  if (rebuild) {
+    const gm = gradientMap(p.steps);
+    parts.forEach(({ mesh, role, side, noFlat }) => {
+      const o = { gradientMap: gm, side: side || THREE.FrontSide, flatShading: !!s.flat && !noFlat };
+      if (role === 'terrain') { o.vertexColors = true; o.color = new THREE.Color('#ffffff'); }
+      else if (role === 'plane') { o.map = planeTex; o.color = new THREE.Color('#ffffff').multiplyScalar(0.95); }
+      else o.color = new THREE.Color(pal[role] || pal.lawn);
+      const old = mesh.material; mesh.material = mat(o); old.dispose();
+    });
+    colorTerrain(pal);
+    hemi.groundColor.set(pal.lawn).lerp(new THREE.Color('#ffffff'), 0.5);
+    skyU.uTop.value.set(pal.sky[0]); skyU.uHor.value.set(pal.sky[1]);
+    scene.fog.color.set(pal.fog);
+    postU.uInk.value.set(pal.ink);
+  }
+  setSun(p.sun);
+  hatchU.value = p.hatch;
+  scene.fog.density = 0.00012 + p.haze * 0.0026; postU.uFogD.value = scene.fog.density;
+  postU.uThick.value = p.outline * DPR; postU.uSat.value = p.sat; postU.uGrain.value = p.grain;
+  $('styleName').textContent = s.name; $('styleDesc').textContent = s.desc;
+  document.querySelectorAll('#styles button').forEach(b => b.setAttribute('aria-pressed', b.dataset.id === s.id ? 'true' : 'false'));
+  syncSliders();
+}
+const sliders = [
+  ['sOutline', 'oOutline', 'outline', v => v < 0.05 ? 'off' : v.toFixed(1) + 'px', false],
+  ['sHatch', 'oHatch', 'hatch', v => v < 0.02 ? 'off' : Math.round(v * 100), false],
+  ['sSat', 'oSat', 'sat', v => Math.round(v * 100) + '%', false],
+  ['sSteps', 'oSteps', 'steps', v => STEP_NAMES[v], true],
+  ['sSun', 'oSun', 'sun', v => v < 18 ? 'dusk' : v < 32 ? 'late' : v < 55 ? 'day' : 'noon', false],
+  ['sHaze', 'oHaze', 'haze', v => Math.round(v * 100), false],
+  ['sGrain', 'oGrain', 'grain', v => Math.round(v * 100), false]
+];
+function syncSliders() { const p = P(); sliders.forEach(([sid, oid, key, fmt]) => { $(sid).value = p[key]; $(oid).textContent = fmt(+p[key]); }); }
+sliders.forEach(([sid, oid, key, fmt, rebuild]) => $(sid).addEventListener('input', e => { P()[key] = +e.target.value; $(oid).textContent = fmt(+e.target.value); applyStyle(rebuild); }));
+STYLES.forEach(s => {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = s.name; b.dataset.id = s.id;
+  b.addEventListener('click', () => { cur = s; applyStyle(true); });
+  $('styles').appendChild(b);
+});
+$('resetBtn').addEventListener('click', () => { tuned[cur.id] = Object.assign({}, cur.set); applyStyle(true); });
+$('fullBtn').addEventListener('click', () => {
+  const a = $('app'); a.classList.toggle('full');
+  $('fullBtn').textContent = a.classList.contains('full') ? 'Show controls' : 'Full view';
+  setTimeout(resize, 320);
+});
+$('copyBtn').addEventListener('click', () => {
+  const p = P();
+  const txt = `Look Lab 2 pick: ${cur.name} | outline ${p.outline < 0.05 ? 'off' : p.outline.toFixed(1) + 'px'} | pencil ${Math.round(p.hatch * 100)} | color ${Math.round(p.sat * 100)}% | shading ${STEP_NAMES[p.steps]} | sun ${p.sun}° | haze ${Math.round(p.haze * 100)} | grain ${Math.round(p.grain * 100)}`;
+  const ta = $('copyText'); ta.value = txt; ta.hidden = false;
+  const fallback = () => { try { ta.focus(); ta.select(); } catch (e) {} $('copyBtn').textContent = 'Select and copy below'; };
+  try { navigator.clipboard.writeText(txt).then(() => { $('copyBtn').textContent = 'Copied'; setTimeout(() => { $('copyBtn').textContent = 'Copy my settings'; }, 1600); }, fallback); } catch (e) { fallback(); }
+});
+
+/* ---------- camera: chase view, drag to look around ---------- */
+let yaw = 0, pitch = 0.18, dragging = null;
+cv.addEventListener('pointerdown', e => { dragging = { x: e.clientX, y: e.clientY, yaw, pitch }; try { cv.setPointerCapture(e.pointerId); } catch (err) {} $('hintdrag').hidden = true; });
+cv.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  yaw = clamp(dragging.yaw - (e.clientX - dragging.x) * 0.006, -2.6, 2.6);
+  pitch = clamp(dragging.pitch + (e.clientY - dragging.y) * 0.004, -0.2, 1.1);
+});
+const endDrag = () => { dragging = null; };
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+
+function resize() {
+  const w = cv.clientWidth || 1, h = cv.clientHeight || 1;
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(DPR); renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.fov = camera.aspect < 0.8 ? 66 : 54; camera.updateProjectionMatrix();
+  makeTarget(Math.floor(w * DPR), Math.floor(h * DPR));
+  postU.uRes.value.set(w * DPR, h * DPR); pxU.value = DPR; postU.uThick.value = P().outline * DPR;
+}
+addEventListener('resize', resize);
+const RM = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const look = new THREE.Vector3();
+function frame(now) {
+  const t = RM ? 0 : now / 1000;
+  plane.position.set(Math.sin(t * 0.5) * 0.4, 13 + Math.sin(t * 1.1) * 0.25, -226);
+  plane.rotation.set(-0.06 + Math.sin(t * 1.1 + 1) * 0.04, 0, Math.sin(t * 0.7) * 0.15, 'YXZ');
+  birds.forEach(b => {
+    const a = b.ph + t * 0.45;
+    b.g.position.set(5 + Math.cos(a) * b.r, b.y + Math.sin(t * 1.3 + b.ph) * 0.5, -300 + Math.sin(a) * b.r);
+    b.g.rotation.set(0, Math.atan2(Math.sin(a), -Math.cos(a)), 0.3, 'YXZ');
+    const fl = Math.sin(t * 9 + b.ph) * 0.65; b.L.rotation.z = fl; b.R.rotation.z = -fl;
+  });
+  const dist = 3.4;
+  camera.position.set(plane.position.x + Math.sin(yaw) * Math.cos(pitch) * dist, plane.position.y + 0.9 + Math.sin(pitch) * dist, plane.position.z + Math.cos(yaw) * Math.cos(pitch) * dist);
+  look.set(plane.position.x - Math.sin(yaw) * 6, plane.position.y - 0.6, plane.position.z - Math.cos(yaw) * 6);
+  camera.lookAt(look);
+  sky.position.copy(camera.position);
+  renderer.setRenderTarget(rt); renderer.render(scene, camera);
+  postU.tColor.value = rt.texture; postU.tDepth.value = rt.depthTexture;
+  renderer.setRenderTarget(null); renderer.render(postScene, postCam);
+  requestAnimationFrame(frame);
+}
+resize();
+applyStyle(true);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#d9d1d6">
+<meta name="description" content="Paper Planes: fold a paper plane, then fly it through a backyard canyon or a coastal rooftop city.">
+<title>Paper Planes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Paper plane game. Pull back and release to throw; drag or use arrow keys to steer."></canvas>
+<canvas id="overlay"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="hud">
+  <div class="stats">
+    <div class="dist"><span id="dist">0.0</span><small>m</small></div>
+    <div class="best">best <span id="best">none yet</span></div>
+    <div class="best" id="styleLine">★ 0 · 0.0s in the air</div>
+  </div>
+  <div class="chips">
+    <button class="chip" id="lookBtn" type="button" hidden>Look</button><button class="chip plane" id="hangarBtn" type="button">✈ Classic Dart</button>
+    <button class="chip" id="levelBtn" type="button">World: Backyard</button>
+    <button class="chip" id="invert" type="button">Drag up = climb</button>
+    <div class="chiprow"><button class="chip" id="muteBtn" type="button">Sound on</button><button class="chip" id="guideBtn" type="button">Field guide</button></div>
+  </div>
+</div>
+<div class="wind" id="wind"><svg viewBox="0 0 26 26" id="windArrow" aria-hidden="true"><path d="M13 22 L13 5 M7 11 L13 4 L19 11" fill="none" stroke="#2a2a30" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="windTxt">Breeze</span></div>
+<div class="toast off" id="toast" aria-live="polite"></div>
+<div class="hint" id="hint"><span id="hintTxt">Pull back to throw · slide sideways to aim</span></div>
+<div class="stall" id="stall" hidden>Stall!</div>
+<div class="tricks" id="tricks" hidden>
+  <button class="trick" id="rollBtn" type="button">Roll</button>
+  <button class="trick" id="loopBtn" type="button">Loop</button>
+</div>
+
+<div class="result" id="result" hidden>
+  <div class="card">
+    <p class="why" id="why">Smooth landing</p>
+    <div class="big">★ <span id="final">0</span></div>
+    <p class="stats2" id="stats2"></p>
+    <p class="sub" id="sub">best ★ 0</p>
+    <button class="again" id="again" type="button">Throw again</button>
+  </div>
+</div>
+
+<div class="hangar" id="hangar" hidden>
+  <div class="hcard" role="dialog" aria-labelledby="hTitle">
+    <div class="hhead"><h2 id="hTitle">Hangar</h2><button class="hx" id="hClose" type="button" aria-label="Close the hangar">✕</button></div>
+    <div class="hlist" id="hList" role="group" aria-label="Your planes"></div>
+    <label class="hname" for="hName"><span>Name</span><input id="hName" maxlength="24" autocomplete="off"></label>
+    <div class="fold" id="hFold"></div>
+    <div class="hstats" id="hStats"></div>
+    <div class="hact">
+      <button class="again" id="hFly" type="button">Fly this plane</button>
+      <button class="mini" id="hCopy" type="button">Copy</button>
+      <button class="mini" id="hNew" type="button">New</button>
+      <button class="mini danger" id="hDel" type="button">Delete</button>
+    </div>
+    <p class="hnote" id="hNote"></p>
+  </div>
+</div>
+
+<div class="guide" id="guide" hidden>
+  <div class="card" role="dialog" aria-labelledby="guideTitle">
+    <h2 id="guideTitle">Backyard Field Guide</h2>
+    <p class="lede">Spot these before you throw.</p>
+    <h3>Just for fun</h3>
+    <ul>
+      <li><svg viewBox="0 0 34 34"><path d="M3 30l8-14 6 8 6-12 8 18Z" fill="#d0804f" stroke="#2a2a30" stroke-width="2" stroke-linejoin="round"/><path d="M3 30h28" stroke="#2a2a30" stroke-width="2"/></svg><span><b>The canyon</b> · cross the long field, clear the hedge, and the yard drops into a giant canyon. Air rises everywhere, so you can float for a long time.</span></li>
+      <li><svg viewBox="0 0 34 34"><circle cx="17" cy="17" r="11" fill="none" stroke="#f2b928" stroke-width="4"/><circle cx="17" cy="17" r="11" fill="none" stroke="#2a2a30" stroke-width="1.2"/></svg><span><b>Rings</b> · fly through for points. Hit the next one within a few seconds to build a streak, up to x5.</span></li>
+      <li><svg viewBox="0 0 34 34"><path d="M3 15c5-6 9-6 14 1c5-7 9-7 14-1" fill="none" stroke="#3e3e46" stroke-width="3" stroke-linecap="round"/></svg><span><b>Birds</b> · hitting one knocks you down and costs points. Skim past one for a close-call bonus.</span></li>
+      <li><svg viewBox="0 0 34 34"><circle cx="17" cy="15" r="9" fill="none" stroke="#2b4fbf" stroke-width="2.4" stroke-dasharray="4 3"/><path d="M8 28h18" stroke="#2a2a30" stroke-width="2" stroke-linecap="round"/></svg><span><b>Loop</b> · snap the stick back fast while you have speed (a fresh throw or a dive). A slow pull just climbs. Each loop costs a little speed. <b>Barrel roll</b> · double-swipe left or right. It hops you sideways, and birds can't hit you mid-roll.</span></li>
+    </ul>
+    <h3>Harbor City</h3>
+    <ul>
+      <li><svg viewBox="0 0 34 34"><rect x="4" y="10" width="9" height="20" fill="#e8b58f" stroke="#2a2a30" stroke-width="2"/><rect x="20" y="4" width="10" height="26" fill="#9cc3bb" stroke="#2a2a30" stroke-width="2"/><path d="M13 16c2 2 5 2 7 0" fill="none" stroke="#5a5048" stroke-width="1.5"/><rect x="15" y="17" width="2" height="3" fill="#e2483d"/></svg><span><b>The city</b> · fly down the main street or over the rooftops. Rooftop vents give warm lift, side streets can blow you sideways, and laundry lines will snag you.</span></li>
+      <li><svg viewBox="0 0 34 34"><path d="M2 24c4-3 8 3 12 0s8 3 12 0 6 2 8 0" fill="none" stroke="#2b4fbf" stroke-width="2"/><path d="M8 24V12M8 12l6 3-6 3" fill="#f4f1ea" stroke="#2a2a30" stroke-width="1.6"/><path d="M22 24c0-10 8-10 8 0" fill="#d9b48a" stroke="#2a2a30" stroke-width="1.8"/></svg><span><b>The sea</b> · a sea breeze rises off the seawall, and warm air keeps you up over the water. Thread the rings through the rock arches, and watch for seagulls and sailboat masts.</span></li>
+    </ul>
+    <h3>Lift</h3>
+    <ul>
+      <li><svg viewBox="0 0 34 34"><path d="M7 16a10 7 0 0 0 20 0Z" fill="#e9a497" stroke="#2a2a30" stroke-width="2" stroke-linejoin="round"/><path d="M11 22l-3 9M23 22l3 9M17 23v8M12 11c1-3-1-4 0-7M17 11c1-3-1-4 0-7M22 11c1-3-1-4 0-7" fill="none" stroke="#2a2a30" stroke-width="2" stroke-linecap="round"/></svg><span><b>Grill</b> · a tight column of hot air. Strong lift if you circle in it.</span></li>
+      <li><svg viewBox="0 0 34 34"><circle cx="17" cy="17" r="7" fill="#f6e6a0" stroke="#2a2a30" stroke-width="2"/><path d="M17 3v4M17 27v4M3 17h4M27 17h4M7 7l3 3M24 24l3 3M27 7l-3 3M7 27l3-3" stroke="#2a2a30" stroke-width="2" stroke-linecap="round"/></svg><span><b>Sunspot</b> · a yellow patch on the lawn. Gentle, wide lift that keeps going up high.</span></li>
+      <li><svg viewBox="0 0 34 34"><ellipse cx="17" cy="20" rx="12" ry="4" fill="#a9c1ef" stroke="#2a2a30" stroke-width="2"/><path d="M8 23l-2 8M26 23l2 8M17 3v10M13 8l4-5 4 5" fill="none" stroke="#2a2a30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Trampoline</b> · land on it and you bounce back up. Up to four boings.</span></li>
+    </ul>
+    <h3>Push and pull</h3>
+    <ul>
+      <li><svg viewBox="0 0 34 34"><path d="M6 5c8 2 14 2 22 0M8 11c6 2 12 2 18 0M11 17c4 1.5 8 1.5 12 0M13 23c3 1 5 1 8 0M16 29h2" fill="none" stroke="#8a6d4b" stroke-width="2.2" stroke-linecap="round"/></svg><span><b>Dust devil</b> · a little tornado that wanders the yard. Spins you around and tosses you up. Shows up some throws, not all.</span></li>
+      <li><svg viewBox="0 0 34 34"><rect x="7" y="5" width="20" height="20" rx="2" fill="#fdfcf6" stroke="#2a2a30" stroke-width="2"/><circle cx="17" cy="15" r="7" fill="none" stroke="#2a2a30" stroke-width="1.6"/><path d="M17 15l4-4M17 15l-5 1M17 15l1 5M10 25l-2 6M24 25l2 6" stroke="#2a2a30" stroke-width="1.8" stroke-linecap="round"/></svg><span><b>Box fan</b> · on a picnic table. A hard shove in the direction it faces.</span></li>
+      <li><svg viewBox="0 0 34 34"><path d="M4 12h18c4 0 5-6 1-6M4 19h22M4 26h14c4 0 5 5 1 5" fill="none" stroke="#2a2a30" stroke-width="2" stroke-linecap="round"/></svg><span><b>Crosswind</b> · drifting scribbles across the middle of the yard. Pushes you to the right.</span></li>
+      <li><svg viewBox="0 0 34 34"><path d="M17 30v-8M13 30h8" stroke="#2a2a30" stroke-width="2.2" stroke-linecap="round"/><path d="M17 21C11 9 5 9 3 14M17 21c6-12 12-12 14-7M17 21c-2-12-6-15-8-14M17 21c2-12 6-15 8-14" fill="none" stroke="#2b4fbf" stroke-width="2" stroke-dasharray="3 3" stroke-linecap="round"/></svg><span><b>Sprinkler</b> · heavy spray pushes you down. Only some are running each throw.</span></li>
+    </ul>
+    <h3>Ends your flight</h3>
+    <ul>
+      <li><svg viewBox="0 0 34 34"><circle cx="17" cy="12" r="9" fill="#cfe2b0" stroke="#2a2a30" stroke-width="2"/><path d="M17 21v10" stroke="#2a2a30" stroke-width="3" stroke-linecap="round"/></svg><span><b>Trees, shed, swing set</b> · fly around them or over them.</span></li>
+      <li><svg viewBox="0 0 34 34"><path d="M5 30V14l2-3 2 3v16M13 30V14l2-3 2 3v16M21 30V14l2-3 2 3v16M3 20h26M3 26h26" fill="#fdfcf6" stroke="#2a2a30" stroke-width="1.8" stroke-linejoin="round"/></svg><span><b>Fence and hedge</b> · the fence has an open gate dead ahead. The hedge marks the end of the yard.</span></li>
+      <li><svg viewBox="0 0 34 34"><ellipse cx="17" cy="20" rx="13" ry="6" fill="#cfe5f7" stroke="#2a2a30" stroke-width="2"/><path d="M9 20c2-2 4 2 6 0s4 2 6 0 4 2 5 0" fill="none" stroke="#2b4fbf" stroke-width="1.6" stroke-linecap="round"/></svg><span><b>Kiddie pool</b> · splash! A soggy plane stops right there.</span></li>
+    </ul>
+    <h3>In the classroom</h3>
+    <ul>
+      <li><svg viewBox="0 0 34 34"><rect x="5" y="16" width="24" height="12" rx="2" fill="#e9e4da" stroke="#2a2a30" stroke-width="2"/><path d="M10 16v12M15 16v12M20 16v12M25 16v12M12 12c1-3-1-4 0-7M17 12c1-3-1-4 0-7M22 12c1-3-1-4 0-7" fill="none" stroke="#2a2a30" stroke-width="1.8" stroke-linecap="round"/></svg><span><b>Heater vent</b> · under the windows. Warm air lifts you, like the grills outside.</span></li>
+      <li><svg viewBox="0 0 34 34"><path d="M4 28l8-20h14l-6 20Z" fill="#fff1b8" stroke="#b8891a" stroke-width="2" stroke-linejoin="round"/></svg><span><b>Sunbeam</b> · bright patches on the floor. Gentle lift.</span></li>
+      <li><svg viewBox="0 0 34 34"><path d="M17 3v9" stroke="#2a2a30" stroke-width="2.2"/><ellipse cx="17" cy="14" rx="14" ry="3" fill="#d9bf98" stroke="#2a2a30" stroke-width="2"/><path d="M11 20l-2 6M17 21v7M23 20l2 6" stroke="#2a2a30" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3"/></svg><span><b>Ceiling fan</b> · pushes you down and twists you. Not always running.</span></li>
+      <li><svg viewBox="0 0 34 34"><rect x="4" y="4" width="12" height="26" fill="#e4f3fc" stroke="#2a2a30" stroke-width="2"/><path d="M19 11h10M19 17h12M19 23h9" stroke="#2a2a30" stroke-width="2" stroke-linecap="round"/></svg><span><b>Open window</b> · a breeze pushes you across the room.</span></li>
+      <li><svg viewBox="0 0 34 34"><rect x="6" y="6" width="16" height="16" rx="2" fill="#f2f2ec" stroke="#2a2a30" stroke-width="2"/><circle cx="14" cy="14" r="5" fill="none" stroke="#2a2a30" stroke-width="1.6"/><path d="M24 28h8M26 24h6" stroke="#2a2a30" stroke-width="2" stroke-linecap="round"/></svg><span><b>Desk fan</b> · on the teacher's desk, blowing back at you. A headwind.</span></li>
+      <li><svg viewBox="0 0 34 34"><ellipse cx="17" cy="22" rx="13" ry="8" fill="#e98a3b" stroke="#2a2a30" stroke-width="2"/></svg><span><b>Beanbag</b> · bounces you back up. <b>Trash can</b> · land in it for a swish.</span></li>
+    </ul>
+    <button class="again" id="guideClose" type="button">Back to the game</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/01-core.js"></script>
+<script src="js/02-backyard.js"></script>
+<script src="js/03-sky.js"></script>
+<script src="js/04-harbor.js"></script>
+<script src="js/05-classroom.js"></script>
+<script src="js/06-plane.js"></script>
+<script src="js/07-fx-sound.js"></script>
+<script src="js/08-flight.js"></script>
+<script src="js/09-game.js"></script>
+<script src="js/10-hangar.js"></script>
+<script src="js/11-render-boot.js"></script>
+</body>
+</html>
