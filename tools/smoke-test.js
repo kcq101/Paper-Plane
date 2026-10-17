@@ -27,6 +27,10 @@ let frames = 0, rafCb;
 global.requestAnimationFrame = cb => { rafCb = cb; };
 global.performance = { now: () => frames * 16 };
 
+// seeded randomness: wind, dust devils and city layout come out the same every run, so a result is reproducible
+let seed = 20261016;
+Math.random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+
 const dir = path.join(__dirname, '..', 'js');
 const code = fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n;\n');
 vm.runInThisContext(code, { filename: 'game.js' });
