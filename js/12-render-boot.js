@@ -1,4 +1,4 @@
-// Paper Planes · 11-render-boot.js
+// Paper Planes · 12-render-boot.js
 // Post-processing (outlines, color, grain), the frame loop and boot.
 // Classic script: shares one global scope with the other js/ files, loaded in numeric order.
 'use strict';

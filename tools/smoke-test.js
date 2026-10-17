@@ -62,6 +62,20 @@ const saved = JSON.parse(mem['ppb-hangar'] || '[]');
 const hangarOk = made.startsWith('My plane') && saved.length === 1;
 if (!hangarOk) failures++;
 console.log(`${hangarOk ? 'ok ' : 'FAIL'} new + copy + delete -> ${saved.length} saved design(s); flying: ${els.hangarBtn.textContent}`);
+console.log('\n== Paper stars');
+{
+  const g = s => vm.runInThisContext(s);
+  if (!els.levelBtn.textContent.includes('Backyard')) els.levelBtn.h.click();
+  const n = g('starsTotal()'), dropped = g('STARS_DROPPED.length');
+  g('resetThrow(); S.mode = "fly"; S.stars = 0; S.newStars = 0;');
+  g('{ const c = STARS.backyard.list[0].c; checkStars(new THREE.Vector3(c.x, c.y, c.z + 3), new THREE.Vector3(c.x, c.y, c.z - 3)); }');
+  const got = g('S.stars'), isNew = g('S.newStars'), saved = JSON.parse(mem['ppb-stars-backyard'] || '[]');
+  g('checkStars(new THREE.Vector3(0, -50, 0), new THREE.Vector3(0, -50, 1));'); // nowhere near a star
+  const ok = n >= 15 && g('STARS.harbor.list.length') >= 12 && got === 1 && isNew === 1 && saved.length === 1 && g('S.stars') === 1;
+  if (!ok) failures++;
+  console.log(`${ok ? 'ok ' : 'FAIL'} backyard ${n} stars, harbor ${g('STARS.harbor.list.length')}, dropped ${dropped} (stubbed geometry; check in a browser); fly-through picks up ${got} (new ${isNew}), saved ${saved.length}`);
+  g('resetThrow();');
+}
 console.log('\n== Quality governor');
 {
   const g = s => vm.runInThisContext(s);

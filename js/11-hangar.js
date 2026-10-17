@@ -1,4 +1,4 @@
-// Paper Planes · 10-hangar.js
+// Paper Planes · 11-hangar.js
 // Hangar and folding studio: saved designs (private db storage with local fallback).
 // Classic script: shares one global scope with the other js/ files, loaded in numeric order.
 'use strict';

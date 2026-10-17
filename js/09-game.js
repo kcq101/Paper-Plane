@@ -7,7 +7,7 @@
 const LOOP_V = 12;
 let loopTips = 0;
 try { loopTips = +(localStorage.getItem('ppb-looptips') || 0); } catch (e) {}
-const S = { tLow: 0, prevIy: 0, warnT: -9, trick: null, style: 0, tricks: 0, air: 0, combo: 0, lastTrick: -9, rings: 0, ringStreak: 0, lastRing: -9, hold: 0, lowWarned: false, birdHits: 0, mode: 'aim', pos: LAUNCH.clone(), v: 0, g: 0, yaw: 0, bank: 0, stall: 0, stalled: false, r: 1, slide: new THREE.Vector3(), reason: '', stick: false, endT: 0, bounces: 0 };
+const S = { tLow: 0, prevIy: 0, warnT: -9, trick: null, style: 0, tricks: 0, air: 0, combo: 0, lastTrick: -9, rings: 0, stars: 0, newStars: 0, ringStreak: 0, lastRing: -9, hold: 0, lowWarned: false, birdHits: 0, mode: 'aim', pos: LAUNCH.clone(), v: 0, g: 0, yaw: 0, bank: 0, stall: 0, stalled: false, r: 1, slide: new THREE.Vector3(), reason: '', stick: false, endT: 0, bounces: 0 };
 let simT = 0, invert = false, steered = false, paused = false;
 let best = null;
 let level = 'backyard';
@@ -81,7 +81,7 @@ function resetThrow() {
   camBase.copy(aimCamPos); camera.position.copy(aimCamPos); camLook.copy(aimCamLook);
   trailCount = 0; trail.visible = false;
   $('result').hidden = true; $('stall').hidden = true; $('tricks').hidden = true;
-  S.style = 0; S.air = 0; S.tricks = 0; S.trick = null; S.rings = 0; updateStyleLine();
+  S.style = 0; S.air = 0; S.tricks = 0; S.trick = null; S.rings = 0; S.stars = 0; S.newStars = 0; resetStars(); updateStyleLine();
   rings.forEach(r => { r.got = false; r.t = 0; r.mesh.visible = true; r.mesh.scale.setScalar(1); });
   birds.forEach(b => { b.gone = false; b.near = false; b.g.visible = true; });
   $('dist').textContent = '0.0';
@@ -100,14 +100,14 @@ function launch() {
   S.g = 0.03 + aim.pull * 0.03;
   S.yaw = aim.yaw; S.bank = 0; S.stalled = false; S.stall = 0; S.bounces = 0;
   S.trick = null; S.style = 0; S.tricks = 0; S.air = 0; S.combo = 0; S.lastTrick = -9;
-  S.rings = 0; S.ringStreak = 0; S.lastRing = -9; S.tLow = 0; S.prevIy = 0; S.tipShown = false; S.birdHits = 0;
+  S.rings = 0; S.stars = 0; S.newStars = 0; S.ringStreak = 0; S.lastRing = -9; S.tLow = 0; S.prevIy = 0; S.tipShown = false; S.birdHits = 0;
   updateStyleLine();
   simT = 0; preview.visible = false; trailCount = 0;
   Sfx.whoosh(aim.pull);
   setHint(steered ? '' : 'Drag to steer · snap back fast to loop · double-swipe to roll');
 }
 
-function updateStyleLine() { $('styleLine').textContent = `★ ${S.style} · rings ${S.rings}/${rings.length} · ${S.air.toFixed(1)}s`; }
+function updateStyleLine() { $('styleLine').textContent = `★ ${S.style} · rings ${S.rings}/${rings.length} · stars ${S.stars}/${starsTotal()} · ${S.air.toFixed(1)}s`; }
 function heightAboveGround() { return S.pos.y - groundAt(S.pos.x, S.pos.z); }
 function award(name, pts) {
   S.combo = simT - S.lastTrick < 2.5 ? Math.min(5, S.combo + 1) : 1; S.lastTrick = simT;
@@ -241,7 +241,10 @@ function finish() {
   if (isBest) { bestStyle = style; try { localStorage.setItem(bsKey, String(style)); } catch (e) {} }
   $('why').textContent = S.reason;
   $('final').textContent = style.toLocaleString();
-  $('stats2').textContent = `${S.rings}/${rings.length} rings · ${S.tricks} trick${S.tricks === 1 ? '' : 's'} · ${S.birdHits} bird${S.birdHits === 1 ? '' : 's'} hit · ${fmt(d)} m · ${S.air.toFixed(1)}s`;
+  $('stats2').textContent = `${S.rings}/${rings.length} rings · ${S.stars}/${starsTotal()} stars · ${S.tricks} trick${S.tricks === 1 ? '' : 's'} · ${S.birdHits} bird${S.birdHits === 1 ? '' : 's'} hit · ${fmt(d)} m · ${S.air.toFixed(1)}s`;
+  const WN = { backyard: 'the Backyard', harbor: 'Harbor City', classroom: 'the classroom' }[level];
+  $('starsFound').textContent = starsTotal() ? `Stars found in ${WN}: ${starsFound()}/${starsTotal()}` + (S.newStars ? ` (${S.newStars} new!)` : '') : '';
+  $('starsFound').classList[S.newStars ? 'add' : 'remove']('fresh');
   const sub = $('sub');
   sub.textContent = isBest ? 'New best!' : 'best ★ ' + bestStyle.toLocaleString();
   sub.className = 'sub' + (isBest ? ' newbest' : '');
@@ -552,6 +555,7 @@ function update(dt, now) {
   Sfx.update(S.mode, S.v, S.stall);
   if (S.mode === 'fly') { trailTick += dt; if (trailTick > 0.05) { trailTick = 0; pushTrail(S.pos); } }
 
+  animateStars(dt, tt);
   rings.forEach(r => { if (r.got && r.mesh.visible) { r.t += dt; r.mesh.scale.setScalar(1 + r.t * 2.5); if (r.t > 0.3) r.mesh.visible = false; } });
   if (level !== 'classroom') birds.forEach(b => {
     if (b.gone) { b.pos.addScaledVector(b.vel, dt); b.vel.y += dt * 2; if (b.pos.y > 120) b.g.visible = false; }
@@ -623,7 +627,7 @@ function update(dt, now) {
         const tr = S.trick, k = Math.min(1, tr.t / tr.dur), sp = 6.5 * Math.sin(Math.PI * k) * Math.PI / 2 / tr.dur * h;
         S.pos.x += Math.cos(S.yaw) * tr.dir * sp; S.pos.z += -Math.sin(S.yaw) * tr.dir * sp;
       }
-      if (level !== 'classroom') { checkRings(prevPos, S.pos); checkBirds(); }
+      if (level !== 'classroom') { checkRings(prevPos, S.pos); checkStars(prevPos, S.pos); checkBirds(); }
       S.bank += (Math.random() - 0.5) * h * 5 * S.stall;
       if (zone === 'devil') S.bank += Math.sin(simT * 15) * h * 3;
       simT += h;

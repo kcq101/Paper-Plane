@@ -57,8 +57,9 @@ js/06-plane.js      plane folds, flight modifiers, paper textures
 js/07-fx-sound.js   comic effects and synthesized sound
 js/08-flight.js     flight model, wind and lift zones, collisions
 js/09-game.js       game state, scoring, input, HUD, per-frame update
-js/10-hangar.js     hangar and folding studio
-js/11-render-boot.js post-processing, frame loop, boot
+js/10-stars.js      paper-star collectibles (placement, pickup, found tally)
+js/11-hangar.js     hangar and folding studio
+js/12-render-boot.js post-processing, frame loop, boot
 lab/index.html      Look Lab: the art-direction bench used to pick the visual style
 tools/smoke-test.js headless test that plays simulated throws in both worlds
 tools/bundle.js     builds dist/paper-planes.html, a single self-contained file

@@ -205,6 +205,8 @@ const Sfx = {
   hiss() { this.burst({ type: 'highpass', f0: 5000, q: 0.7, dur: 0.6, gain: 0.16, att: 0.05 }); },
   scratch() { for (let i = 0; i < 3; i++) this.burst({ type: 'bandpass', f0: 3000 + Math.random() * 2000, q: 3, dur: 0.045, gain: 0.12, att: 0.004, delay: i * 0.05 }); },
   ring(n) { const f = 660 * Math.pow(1.122, Math.min(n, 8) - 1); this.tone({ wave: 'triangle', f0: f, f1: f, dur: 0.25, gain: 0.18 }); this.tone({ f0: f * 1.5, f1: f * 1.5, dur: 0.35, gain: 0.12, delay: 0.07 }); },
+  star(isNew) { [1320, 1760].forEach((f, i) => this.tone({ wave: 'triangle', f0: f, f1: f, dur: 0.16, gain: 0.13, delay: i * 0.06 }));
+    if (isNew) this.tone({ wave: 'triangle', f0: 2093, f1: 2093, dur: 0.3, gain: 0.11, delay: 0.14 }); },
   squawk() { this.tone({ wave: 'sawtooth', f0: 900, f1: 480, dur: 0.18, gain: 0.1, vib: 30, vibDepth: 120 }); this.tone({ wave: 'sawtooth', f0: 1000, f1: 560, dur: 0.15, gain: 0.08, delay: 0.2, vib: 30, vibDepth: 100 }); },
   fanfare() { [523, 659, 784, 1046].forEach((f, i) => this.tone({ wave: 'triangle', f0: f, f1: f, dur: 0.2, gain: 0.16, delay: i * 0.09 })); },
   update(mode, v, stall) {

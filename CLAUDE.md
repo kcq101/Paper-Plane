@@ -18,13 +18,17 @@ Owner: Kevin. Iterates by playing on an Android phone and sending screenshots or
 - Wind/lift: `windAt` (updrafts, fans, devils, gust band, cliff/seawall updrafts, canyon/sea float) and
   `zoneAt` (HUD toasts). Ring boost +2.5 m/s (cap 20). Loop = fast stick snap (<0.25 s) at >= 12 m/s and
   >= 6 m height. Roll = two horizontal swipes within 600 ms.
+- Paper stars (`10-stars.js`): one `InstancedMesh` per world (one draw call). Spots are listed by intent
+  (`line` between rings, `lift` atop thermals/vents, `gate`, `river`, `sea`) and checked against the world at
+  load; blocked spots are nudged up, and anything still blocked lands in `STARS_DROPPED`. +50 per star each
+  throw, +50 more the first time; found stars persist in `ppb-stars-<world>` and draw pale instead of coral.
 - Storage: localStorage keys `ppb-*` (best per world, style best, hangar designs, active plane, settings).
   Inside a Claude artifact, designs also sync to the private `db` path `data/users/<id>/<designId>`
   (capabilities `db` + `user`); outside Claude `window.claude` is absent and it silently stays local.
 
 ## Art direction (decided with Kevin via the Look Lab; keep it)
 "Painted gouache": smooth toon shading (32-step ramp), pencil hatching only in deep shadow at 10%
-(`LOOK.hatch`), thin 0.5 px warm-brown silhouette outline from a depth pass in post (`11-render-boot.js`),
+(`LOOK.hatch`), thin 0.5 px warm-brown silhouette outline from a depth pass in post (`12-render-boot.js`),
 color saturation 115%, sun 54° high ahead-right, exp fog haze 0.5, paper grain 0.1.
 Kevin's feedback so far:
 - Camera stays **directly behind** the plane (don't offset it sideways).
@@ -36,7 +40,7 @@ Kevin's feedback so far:
 
 ## Performance (phones)
 - The scene renders into an offscreen target at `sceneDPR()` (full `DPR` unless `?q=` forces a lower tier).
-- Quality governor (`governor` in `11-render-boot.js`) is **off** (`Q.auto = false`): on Kevin's phone a lower
+- Quality governor (`governor` in `12-render-boot.js`) is **off** (`Q.auto = false`): on Kevin's phone a lower
   render scale looked soft and shimmery and did not raise the frame rate (still 35-45 fps in flight), so the
   bottleneck is not pixel fill. Likely draw calls / CPU; investigate before turning it back on.
 - URL switches: `?q=0..3` forces a tier, `?fps` shows fps, tier, render scale and the GPU driver name.
@@ -56,6 +60,6 @@ Kevin's feedback so far:
 - GitHub Pages serves the repo root from `main`.
 
 ## Ideas queued (from Kevin's list)
-Updraft surfing (skim walls for lift + bonus), collectibles (paper stars), gust bursts, daily challenges,
+Updraft surfing (skim walls for lift + bonus), gust bursts, daily challenges,
 ghost replay of best flight, landing targets, photo mode, weather/time of day. Performance leftovers (only if
 phones still struggle): merge harbor clutter (~270 draw calls), upgrade three.js.
