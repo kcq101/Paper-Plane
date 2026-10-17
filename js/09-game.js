@@ -322,7 +322,7 @@ cv.addEventListener('pointercancel', endDrag);
 addEventListener('keydown', e => {
   keys[e.key] = true;
   if (hangarOpen) { if (e.key === 'Escape') closeHangar(); return; }
-  if (paused) { if (e.key === 'Escape') closeGuide(); return; }
+  if (paused) { if (e.key === 'Escape') { if (!$('sound').hidden) closeSound(); else closeGuide(); } return; }
   if (S.mode === 'aim' && (e.key === ' ' || e.key === 'Enter')) { aim.pull = 0.75; launch(); }
   else if (S.mode === 'fly' && (e.key === 'q' || e.key === 'Q')) startTrick('roll');
   else if (S.mode === 'fly' && (e.key === 'e' || e.key === 'E' || e.key === ' ')) startTrick('loop');
@@ -337,14 +337,30 @@ $('invert').addEventListener('click', () => {
 });
 try { if (localStorage.getItem('ppb-invert') === '1') { invert = true; $('invert').textContent = 'Drag up = dive'; } } catch (e) {}
 $('again').addEventListener('click', () => { Sfx.init(); Sfx.scratch(); resetThrow(); });
-function syncMute() { $('muteBtn').textContent = Sfx.muted ? 'Sound off' : 'Sound on'; }
-syncMute();
-$('muteBtn').addEventListener('click', () => {
-  Sfx.init(); Sfx.setMuted(!Sfx.muted); syncMute(); Sfx.scratch();
-  try { localStorage.setItem('ppb-mute', Sfx.muted ? '1' : '0'); } catch (e) {}
-});
-function openGuide() { Sfx.scratch(); paused = true; drag = null; input.x = input.y = 0; $('guide').hidden = false; $('guideClose').focus({ preventScroll: true }); }
-function closeGuide() { Sfx.scratch(); paused = false; $('guide').hidden = true; last = performance.now(); }
+/* ---------- sound panel: music and effects each get on/off and a volume slider ---------- */
+const save = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+function syncSound() {
+  $('soundBtn').textContent = (Music.on || !Sfx.muted) ? 'Sound' : 'Sound off';
+  $('musicOn').textContent = Music.on ? 'On' : 'Off'; $('musicOn').setAttribute('aria-pressed', String(Music.on));
+  $('sfxOn').textContent = Sfx.muted ? 'Off' : 'On'; $('sfxOn').setAttribute('aria-pressed', String(!Sfx.muted));
+  $('musicVol').value = String(Math.round(Music.vol * 100)); $('musicVol').disabled = !Music.on;
+  $('sfxVol').value = String(Math.round(Sfx.vol * 100)); $('sfxVol').disabled = Sfx.muted;
+  $('nowPlaying').textContent = Music.on ? '♪ ' + Music.title() : 'Music is off';
+}
+syncSound();
+Music.onTrack = () => { if (!$('sound').hidden) syncSound(); };
+function openSound() { Sfx.init(); Sfx.scratch(); paused = true; drag = null; input.x = input.y = 0; syncSound(); document.body.classList.add('in-panel'); $('sound').hidden = false; $('soundClose').focus({ preventScroll: true }); }
+function closeSound() { paused = false; document.body.classList.remove('in-panel'); $('sound').hidden = true; last = performance.now(); }
+$('soundBtn').addEventListener('click', openSound);
+$('soundClose').addEventListener('click', () => { Sfx.scratch(); closeSound(); });
+$('sound').addEventListener('click', e => { if (e.target === $('sound')) closeSound(); });
+$('musicOn').addEventListener('click', () => { Music.setOn(!Music.on); save('ppb-music', Music.on ? '1' : '0'); syncSound(); });
+$('sfxOn').addEventListener('click', () => { Sfx.setMuted(!Sfx.muted); save('ppb-mute', Sfx.muted ? '1' : '0'); syncSound(); Sfx.scratch(); });
+$('musicVol').addEventListener('input', e => { Music.setVolume(+e.target.value / 100); save('ppb-music-vol', String(Music.vol)); });
+$('sfxVol').addEventListener('input', e => { Sfx.setVolume(+e.target.value / 100); save('ppb-sfx-vol', String(Sfx.vol)); });
+$('sfxVol').addEventListener('change', () => Sfx.lift()); // a sample blip at the new level
+function openGuide() { Sfx.scratch(); paused = true; drag = null; input.x = input.y = 0; document.body.classList.add('in-panel'); $('guide').hidden = false; $('guideClose').focus({ preventScroll: true }); }
+function closeGuide() { Sfx.scratch(); paused = false; document.body.classList.remove('in-panel'); $('guide').hidden = true; last = performance.now(); }
 $('guideBtn').addEventListener('click', openGuide);
 $('guideClose').addEventListener('click', closeGuide);
 $('guide').addEventListener('click', e => { if (e.target === $('guide')) closeGuide(); });

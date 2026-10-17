@@ -24,6 +24,10 @@ Owner: Kevin. Iterates by playing on an Android phone and sending screenshots or
   throw, +50 more the first time; found stars persist in `ppb-stars-<world>` and draw pale instead of coral.
 - First-time players start in Harbor City (easiest to navigate, so it's the first impression for friends);
   after that the game reopens the last world played (`ppb-level`).
+- Music (`Music` in `07-fx-sound.js`): `audio/summer-sky-1.mp3` and `-2.mp3` take turns, starting on the first
+  tap (browsers block sound before that). The `<audio>` element runs through a Web Audio gain so volume works on
+  iPhones too; it pauses when the tab is hidden. The Sound chip opens a panel with separate on/off and volume
+  for music (`ppb-music`, `ppb-music-vol`, default 50%) and effects (`ppb-mute`, `ppb-sfx-vol`).
 - Storage: localStorage keys `ppb-*` (best per world, style best, hangar designs, active plane, settings).
   Inside a Claude artifact, designs also sync to the private `db` path `data/users/<id>/<designId>`
   (capabilities `db` + `user`); outside Claude `window.claude` is absent and it silently stays local.
@@ -58,7 +62,8 @@ Kevin's feedback so far:
   simulated throws in both worlds plus hangar actions. It checks logic only, not visuals. Run it after
   every change.
 - `node tools/bundle.js` writes `dist/paper-planes.html` (single file) for publishing as the Claude
-  artifact at https://claude.ai/artifact/LvFrEE7R81wehQGS1jnX4C (declare capabilities `{db:{}, user:{}}`).
+  artifact at https://claude.ai/artifact/LvFrEE7R81wehQGS1jnX4C (declare capabilities `{db:{}, user:{}}`). The
+  music isn't inlined: publish `audio/summer-sky-1.mp3` and `audio/summer-sky-2.mp3` alongside it via `files`.
 - GitHub Pages serves the repo root from `main`.
 
 ## Ideas queued (from Kevin's list)

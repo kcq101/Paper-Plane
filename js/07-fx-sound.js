@@ -128,14 +128,14 @@ function updateConfetti(dt) {
 
 /* ---------- sound: everything synthesized, no audio files ---------- */
 const Sfx = {
-  ctx: null, muted: false,
+  ctx: null, muted: false, vol: 1, // effects volume 0..1, separate from the music
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); Music.unlock(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     try {
       const c = this.ctx = new AC();
-      this.master = c.createGain(); this.master.gain.value = this.muted ? 0 : 0.9; this.master.connect(c.destination);
+      this.master = c.createGain(); this.master.gain.value = this.level(); this.master.connect(c.destination);
       const len = c.sampleRate * 2, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       this.noise = buf;
@@ -155,9 +155,13 @@ const Sfx = {
       f.connect(bp); bp.connect(am); am.connect(this.flutG); this.flutG.connect(this.master);
       f.start(); lfo.start();
     } catch (e) { this.ctx = null; }
+    Music.unlock();
   },
-  setMuted(m) { this.muted = m; if (this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 0.9, this.ctx.currentTime, 0.05); },
-  ok() { return this.ctx && !this.muted && this.ctx.state === 'running'; },
+  level() { return this.muted ? 0 : 0.9 * this.vol; },
+  setMuted(m) { this.muted = m; this.apply(); },
+  setVolume(v) { this.vol = clamp(v, 0, 1); this.apply(); },
+  apply() { if (this.ctx) this.master.gain.setTargetAtTime(this.level(), this.ctx.currentTime, 0.05); },
+  ok() { return this.ctx && !this.muted && this.vol > 0 && this.ctx.state === 'running'; },
   burst(o) {
     if (!this.ok()) return;
     const c = this.ctx, t = c.currentTime + (o.delay || 0);
@@ -218,5 +222,61 @@ const Sfx = {
   }
 };
 try { Sfx.muted = localStorage.getItem('ppb-mute') === '1'; } catch (e) {}
+/* ---------- background music: two tracks taking turns, with their own on/off and volume ---------- */
+// Browsers only allow sound after a tap, so nothing loads or plays until Sfx.init() runs on the first touch.
+// The <audio> element is routed through Web Audio when it can be, so the volume slider also works on iPhones.
+const MUSIC_TRACKS = [
+  { src: 'audio/summer-sky-1.mp3', title: 'Paper Plane in the Summer Sky' },
+  { src: 'audio/summer-sky-2.mp3', title: 'Paper Plane in the Summer Sky (reprise)' },
+];
+const Music = {
+  on: true, vol: 0.5, track: 0, el: null, gain: null, started: false, fails: 0,
+  level() { return this.on ? this.vol * 0.8 : 0; },
+  unlock() {
+    if (!this.on || typeof Audio === 'undefined') return;
+    if (!this.el) {
+      const el = this.el = new Audio();
+      el.preload = 'auto';
+      el.addEventListener('ended', () => this.next());
+      el.addEventListener('playing', () => { this.fails = 0; });
+      el.addEventListener('error', () => { if (this.started && ++this.fails < 3) setTimeout(() => this.next(), 1500); }); // skip a track that won't load, then give up
+      this.load(this.track);
+      try {
+        if (Sfx.ctx && Sfx.ctx.createMediaElementSource) {
+          this.gain = Sfx.ctx.createGain(); this.gain.gain.value = this.level();
+          Sfx.ctx.createMediaElementSource(el).connect(this.gain); this.gain.connect(Sfx.ctx.destination);
+        }
+      } catch (e) { this.gain = null; }
+      this.apply();
+    }
+    this.play();
+  },
+  onTrack: null, // set by the sound panel so its "now playing" line follows the music
+  load(i) { this.track = i % MUSIC_TRACKS.length; this.el.src = MUSIC_TRACKS[this.track].src; if (this.onTrack) this.onTrack(); },
+  next() { if (!this.el) return; this.load(this.track + 1); this.play(); },
+  play() {
+    if (!this.el || !this.on || (typeof document !== 'undefined' && document.hidden)) return;
+    if (!this.el.paused) return;
+    const p = this.el.play(); this.started = true;
+    if (p && p.catch) p.catch(() => {}); // a blocked play is retried on the next tap
+  },
+  pause() { if (this.el && !this.el.paused) this.el.pause(); },
+  apply() {
+    if (!this.el) return;
+    if (this.gain) { this.el.volume = 1; this.gain.gain.setTargetAtTime(this.level(), Sfx.ctx.currentTime, 0.08); }
+    else this.el.volume = clamp(this.level(), 0, 1);
+  },
+  setOn(v) { this.on = v; if (v) { this.unlock(); this.apply(); } else { this.apply(); this.pause(); } },
+  setVolume(v) { this.vol = clamp(v, 0, 1); this.apply(); },
+  title() { return MUSIC_TRACKS[this.track].title; },
+};
+try {
+  const g = k => localStorage.getItem(k);
+  if (g('ppb-music') === '0') Music.on = false;
+  if (g('ppb-music-vol') !== null) Music.vol = clamp(+g('ppb-music-vol') || 0, 0, 1);
+  if (g('ppb-sfx-vol') !== null) Sfx.vol = clamp(+g('ppb-sfx-vol') || 0, 0, 1);
+} catch (e) {}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', () => { if (document.hidden) Music.pause(); else Music.play(); });
+
 addEventListener('pointerdown', () => Sfx.init(), true);
 addEventListener('keydown', () => Sfx.init(), true);

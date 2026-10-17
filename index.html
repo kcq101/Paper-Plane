@@ -26,7 +26,7 @@
     <button class="chip" id="lookBtn" type="button" hidden>Look</button><button class="chip plane" id="hangarBtn" type="button">✈ Classic Dart</button>
     <button class="chip" id="levelBtn" type="button">World: Harbor City</button>
     <button class="chip" id="invert" type="button">Drag up = climb</button>
-    <div class="chiprow"><button class="chip" id="muteBtn" type="button">Sound on</button><button class="chip" id="guideBtn" type="button">Field guide</button></div>
+    <div class="chiprow"><button class="chip" id="soundBtn" type="button" aria-haspopup="dialog">Sound</button><button class="chip" id="guideBtn" type="button">Field guide</button></div>
   </div>
 </div>
 <div class="wind" id="wind"><svg viewBox="0 0 26 26" id="windArrow" aria-hidden="true"><path d="M13 22 L13 5 M7 11 L13 4 L19 11" fill="none" stroke="#2a2a30" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="windTxt">Breeze</span></div>
@@ -63,6 +63,24 @@
       <button class="mini danger" id="hDel" type="button">Delete</button>
     </div>
     <p class="hnote" id="hNote"></p>
+  </div>
+</div>
+
+<div class="guide sound" id="sound" hidden>
+  <div class="card" role="dialog" aria-labelledby="soundTitle">
+    <h2 id="soundTitle">Sound</h2>
+    <div class="srow">
+      <span class="sl">Music</span>
+      <button class="mini stog" id="musicOn" type="button" aria-pressed="true">On</button>
+      <input type="range" id="musicVol" min="0" max="100" step="1" aria-label="Music volume">
+    </div>
+    <p class="now" id="nowPlaying">♪ Paper Plane in the Summer Sky</p>
+    <div class="srow">
+      <span class="sl">Effects</span>
+      <button class="mini stog" id="sfxOn" type="button" aria-pressed="true">On</button>
+      <input type="range" id="sfxVol" min="0" max="100" step="1" aria-label="Effects volume">
+    </div>
+    <button class="again" id="soundClose" type="button">Done</button>
   </div>
 </div>
 
