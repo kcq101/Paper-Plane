@@ -10,7 +10,9 @@ try { loopTips = +(localStorage.getItem('ppb-looptips') || 0); } catch (e) {}
 const S = { tLow: 0, prevIy: 0, warnT: -9, trick: null, style: 0, tricks: 0, air: 0, combo: 0, lastTrick: -9, rings: 0, stars: 0, newStars: 0, ringStreak: 0, lastRing: -9, hold: 0, lowWarned: false, birdHits: 0, mode: 'aim', pos: LAUNCH.clone(), v: 0, g: 0, yaw: 0, bank: 0, stall: 0, stalled: false, r: 1, slide: new THREE.Vector3(), reason: '', stick: false, endT: 0, bounces: 0 };
 let simT = 0, invert = false, steered = false, paused = false;
 let best = null;
-let level = 'harbor'; // the game always opens in Harbor City; the World button switches to the Backyard
+// first-time players start in Harbor City (easiest to navigate); after that, reopen the last world played
+let level = 'harbor';
+try { if (localStorage.getItem('ppb-level') === 'backyard') level = 'backyard'; } catch (e) {}
 const bestKey = () => level === 'backyard' ? 'ppb-best' : 'ppb-best-' + level;
 function loadBest() { try { best = JSON.parse(localStorage.getItem(bestKey()) || 'null'); } catch (e) { best = null; } }
 loadBest();
@@ -514,6 +516,7 @@ function setLevel(id) {
   if (!look) { scene.fog.near = fn; scene.fog.far = ff; shared.uFogNear.value = fn; shared.uFogFar.value = ff; }
   fogBase = [fn, ff];
   shadowFrames = 3;
+  try { localStorage.setItem('ppb-level', id); } catch (e) {}
   $('levelBtn').textContent = 'World: ' + ({ backyard: 'Backyard', harbor: 'Harbor City', classroom: 'Classroom' })[id];
   loadBest(); flag.visible = false; showBest();
 }

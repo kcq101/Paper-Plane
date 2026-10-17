@@ -22,7 +22,8 @@ Owner: Kevin. Iterates by playing on an Android phone and sending screenshots or
   (`line` between rings, `lift` atop thermals/vents, `gate`, `river`, `sea`) and checked against the world at
   load; blocked spots are nudged up, and anything still blocked lands in `STARS_DROPPED`. +50 per star each
   throw, +50 more the first time; found stars persist in `ppb-stars-<world>` and draw pale instead of coral.
-- The game always opens in Harbor City (`level` in `09-game.js`); it doesn't remember the last world.
+- First-time players start in Harbor City (easiest to navigate, so it's the first impression for friends);
+  after that the game reopens the last world played (`ppb-level`).
 - Storage: localStorage keys `ppb-*` (best per world, style best, hangar designs, active plane, settings).
   Inside a Claude artifact, designs also sync to the private `db` path `data/users/<id>/<designId>`
   (capabilities `db` + `user`); outside Claude `window.claude` is absent and it silently stays local.
