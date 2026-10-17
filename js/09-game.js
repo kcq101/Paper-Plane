@@ -7,7 +7,7 @@
 const LOOP_V = 12;
 let loopTips = 0;
 try { loopTips = +(localStorage.getItem('ppb-looptips') || 0); } catch (e) {}
-const S = { tLow: 0, prevIy: 0, warnT: -9, trick: null, style: 0, tricks: 0, air: 0, combo: 0, lastTrick: -9, rings: 0, stars: 0, newStars: 0, ringStreak: 0, lastRing: -9, hold: 0, lowWarned: false, birdHits: 0, mode: 'aim', pos: LAUNCH.clone(), v: 0, g: 0, yaw: 0, bank: 0, stall: 0, stalled: false, r: 1, slide: new THREE.Vector3(), reason: '', stick: false, endT: 0, bounces: 0 };
+const S = { tLow: 0, prevIy: 0, warnT: -9, trick: null, style: 0, tricks: 0, air: 0, combo: 0, lastTrick: -9, rings: 0, stars: 0, ringStreak: 0, lastRing: -9, hold: 0, lowWarned: false, birdHits: 0, mode: 'aim', pos: LAUNCH.clone(), v: 0, g: 0, yaw: 0, bank: 0, stall: 0, stalled: false, r: 1, slide: new THREE.Vector3(), reason: '', stick: false, endT: 0, bounces: 0 };
 let simT = 0, invert = false, steered = false, paused = false;
 let best = null;
 // first-time players start in Harbor City (easiest to navigate); after that, reopen the last world played
@@ -82,7 +82,7 @@ function resetThrow() {
   camBase.copy(aimCamPos); camera.position.copy(aimCamPos); camLook.copy(aimCamLook);
   trailCount = 0; trail.visible = false;
   $('result').hidden = true; $('stall').hidden = true; $('tricks').hidden = true;
-  S.style = 0; S.air = 0; S.tricks = 0; S.trick = null; S.rings = 0; S.stars = 0; S.newStars = 0; resetStars(); updateStyleLine();
+  S.style = 0; S.air = 0; S.tricks = 0; S.trick = null; S.rings = 0; S.stars = 0; resetStars(); updateStyleLine();
   rings.forEach(r => { r.got = false; r.t = 0; r.mesh.visible = true; r.mesh.scale.setScalar(1); });
   birds.forEach(b => { b.gone = false; b.near = false; b.g.visible = true; });
   $('dist').textContent = '0.0';
@@ -101,14 +101,14 @@ function launch() {
   S.g = 0.03 + aim.pull * 0.03;
   S.yaw = aim.yaw; S.bank = 0; S.stalled = false; S.stall = 0; S.bounces = 0;
   S.trick = null; S.style = 0; S.tricks = 0; S.air = 0; S.combo = 0; S.lastTrick = -9;
-  S.rings = 0; S.stars = 0; S.newStars = 0; S.ringStreak = 0; S.lastRing = -9; S.tLow = 0; S.prevIy = 0; S.tipShown = false; S.birdHits = 0;
+  S.rings = 0; S.stars = 0; S.ringStreak = 0; S.lastRing = -9; S.tLow = 0; S.prevIy = 0; S.tipShown = false; S.birdHits = 0;
   updateStyleLine();
   simT = 0; preview.visible = false; trailCount = 0;
   Sfx.whoosh(aim.pull);
   setHint(steered ? '' : 'Drag to steer · snap back fast to loop · double-swipe to roll');
 }
 
-function updateStyleLine() { $('styleLine').textContent = `★ ${S.style} · rings ${S.rings}/${rings.length} · stars ${S.stars}/${starsTotal()} · ${S.air.toFixed(1)}s`; }
+function updateStyleLine() { $('styleLine').textContent = `★ ${S.style} · rings ${S.rings}/${rings.length} · stars ${starsFound()}/${starsTotal()} · ${S.air.toFixed(1)}s`; }
 function heightAboveGround() { return S.pos.y - groundAt(S.pos.x, S.pos.z); }
 function award(name, pts) {
   S.combo = simT - S.lastTrick < 2.5 ? Math.min(5, S.combo + 1) : 1; S.lastTrick = simT;
@@ -242,10 +242,8 @@ function finish() {
   if (isBest) { bestStyle = style; try { localStorage.setItem(bsKey, String(style)); } catch (e) {} }
   $('why').textContent = S.reason;
   $('final').textContent = style.toLocaleString();
-  $('stats2').textContent = `${S.rings}/${rings.length} rings · ${S.stars}/${starsTotal()} stars · ${S.tricks} trick${S.tricks === 1 ? '' : 's'} · ${S.birdHits} bird${S.birdHits === 1 ? '' : 's'} hit · ${fmt(d)} m · ${S.air.toFixed(1)}s`;
-  const WN = { backyard: 'the Backyard', harbor: 'Harbor City', classroom: 'the classroom' }[level];
-  $('starsFound').textContent = starsTotal() ? `Stars found in ${WN}: ${starsFound()}/${starsTotal()}` + (S.newStars ? ` (${S.newStars} new!)` : '') : '';
-  $('starsFound').classList[S.newStars ? 'add' : 'remove']('fresh');
+  $('stats2').textContent = `${S.rings}/${rings.length} rings · ${S.stars} star${S.stars === 1 ? '' : 's'} · ${S.tricks} trick${S.tricks === 1 ? '' : 's'} · ${S.birdHits} bird${S.birdHits === 1 ? '' : 's'} hit · ${fmt(d)} m · ${S.air.toFixed(1)}s`;
+  syncStarsCard();
   const sub = $('sub');
   sub.textContent = isBest ? 'New best!' : 'best ★ ' + bestStyle.toLocaleString();
   sub.className = 'sub' + (isBest ? ' newbest' : '');
@@ -255,6 +253,23 @@ function finish() {
   $('result').hidden = false;
   $('again').focus({ preventScroll: true });
 }
+
+/* ---------- result card: running star count for this world, plus a two-tap reset ---------- */
+let resetArmed = 0;
+function syncStarsCard() {
+  const n = starsFound(), N = starsTotal();
+  $('starsFound').textContent = N ? `Stars collected in ${worldName()}: ${n}/${N}` + (S.stars ? ` (+${S.stars} this flight)` : '') : '';
+  $('starsFound').classList[S.stars ? 'add' : 'remove']('fresh');
+  resetArmed = 0;
+  $('starsReset').textContent = `Reset ${worldName()} stars`;
+  $('starsReset').hidden = n === 0;
+}
+$('starsReset').addEventListener('click', () => {
+  Sfx.scratch();
+  if (Date.now() - resetArmed > 3000) { resetArmed = Date.now(); $('starsReset').textContent = 'Tap again to reset'; return; }
+  resetCollection(); S.stars = 0; syncStarsCard(); updateStyleLine();
+  toast(`All ${starsTotal()} stars are back in ${worldName()}`);
+});
 
 /* ---------- preview ---------- */
 const ghost = { pos: new THREE.Vector3(), v: 0, g: 0, yaw: 0, bank: 0, stall: 0, stalled: false, r: 1 };

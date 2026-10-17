@@ -1,11 +1,12 @@
 // Paper Planes · 10-stars.js
-// Paper-star collectibles: where they sit in each world, picking them up, and the permanent "found" tally.
+// Paper-star collectibles: where they sit in each world, picking them up, and the per-world collection.
+// Each star can be collected once; it stays gone on later throws until the player resets that world's stars.
 // Classic script: shares one global scope with the other js/ files, loaded in numeric order.
 'use strict';
 
 /* ---------- the star: a puffy folded "lucky star", flat-shaded so its facets catch the sun ---------- */
-const STAR_R = 1.0, STAR_PICK = 2.0, STAR_PTS = 50, STAR_NEW_PTS = 50;
-const STAR_NEW = new THREE.Color('#f2917a'), STAR_FOUND = new THREE.Color('#f3d9cc'); // coral = not found yet, pale = found before
+const STAR_R = 1.0, STAR_PICK = 2.0, STAR_PTS = 100;
+const STAR_COL = new THREE.Color('#f2917a');
 const starGeom = (() => {
   const rim = [];
   for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = i % 2 ? STAR_R * 0.46 : STAR_R; rim.push([Math.sin(a) * r, Math.cos(a) * r]); }
@@ -64,7 +65,7 @@ function loadFound(world) {
 function saveFound(world) { try { localStorage.setItem(foundKey(world), JSON.stringify([...STARS[world].found])); } catch (e) {} }
 function paintStars(world) {
   const W = STARS[world];
-  W.list.forEach((s, i) => W.mesh.setColorAt(i, W.found.has(i) ? STAR_FOUND : STAR_NEW));
+  W.list.forEach((s, i) => W.mesh.setColorAt(i, STAR_COL));
   if (W.mesh.instanceColor) W.mesh.instanceColor.needsUpdate = true;
 }
 const mid = (a, b, lift = 1.5) => [(a.c.x + b.c.x) / 2, (a.c.y + b.c.y) / 2 + lift, (a.c.z + b.c.z) / 2, 'line'];
@@ -108,10 +109,15 @@ const alongZ = list => list.slice().sort((a, b) => b.c.z - a.c.z);
 /* ---------- per throw ---------- */
 const starM = new THREE.Matrix4(), starQ = new THREE.Quaternion(), starE = new THREE.Euler(), starS = new THREE.Vector3(), starP = new THREE.Vector3();
 const curStars = () => STARS[level] || null;
+// start of each throw: stars already collected stay hidden (t = 1 skips the pop animation)
 function resetStars() {
   const W = curStars(); if (!W) return;
-  W.list.forEach(s => { s.got = false; s.t = 0; });
-  paintStars(level);
+  W.list.forEach((s, i) => { s.got = W.found.has(i); s.t = s.got ? 1 : 0; });
+}
+// bring every star in the current world back
+function resetCollection() {
+  const W = curStars(); if (!W) return;
+  W.found.clear(); saveFound(level); resetStars();
 }
 function checkStars(a, b) {
   const W = curStars(); if (!W) return;
@@ -120,12 +126,12 @@ function checkStars(a, b) {
     if (s.got) return;
     const t = clamp(((s.c.x - a.x) * abx + (s.c.y - a.y) * aby + (s.c.z - a.z) * abz) / L2, 0, 1);
     if (Math.hypot(a.x + abx * t - s.c.x, a.y + aby * t - s.c.y, a.z + abz * t - s.c.z) > STAR_PICK) return;
-    s.got = true; s.t = 0; S.stars++;
-    const isNew = !W.found.has(i);
-    S.style += STAR_PTS + (isNew ? STAR_NEW_PTS : 0);
-    if (isNew) { W.found.add(i); S.newStars++; saveFound(level); }
-    popWord(isNew ? 'NEW STAR!' : 'STAR', s.c, isNew ? '#f1b2a9' : '#ffe39a', isNew ? 1.2 : 1.0);
-    spawnPuffs(s.c, isNew ? 9 : 6, '#f2917a'); Sfx.star(isNew); updateStyleLine();
+    s.got = true; s.t = 0; S.stars++; S.style += STAR_PTS;
+    W.found.add(i); saveFound(level);
+    const all = W.found.size === W.list.length;
+    popWord(all ? 'ALL STARS!' : `STAR ${W.found.size}/${W.list.length}`, s.c, all ? '#f1b2a9' : '#ffe39a', all ? 1.5 : 1.1);
+    spawnPuffs(s.c, 9, '#f2917a'); Sfx.star(true); updateStyleLine();
+    if (all) { spawnConfetti(); Sfx.fanfare(); toast(`Every star in ${worldName()} collected!`); }
   });
 }
 function animateStars(dt, tt) {
@@ -141,4 +147,5 @@ function animateStars(dt, tt) {
   W.mesh.instanceMatrix.needsUpdate = true;
 }
 const starsTotal = () => (curStars() ? curStars().list.length : 0);
+const worldName = () => ({ backyard: 'the Backyard', harbor: 'Harbor City', classroom: 'the classroom' })[level];
 const starsFound = () => (curStars() ? curStars().found.size : 0);

@@ -20,8 +20,9 @@ Owner: Kevin. Iterates by playing on an Android phone and sending screenshots or
   >= 6 m height. Roll = two horizontal swipes within 600 ms.
 - Paper stars (`10-stars.js`): one `InstancedMesh` per world (one draw call). Spots are listed by intent
   (`line` between rings, `lift` atop thermals/vents, `gate`, `river`, `sea`) and checked against the world at
-  load; blocked spots are nudged up, and anything still blocked lands in `STARS_DROPPED`. +50 per star each
-  throw, +50 more the first time; found stars persist in `ppb-stars-<world>` and draw pale instead of coral.
+  load; blocked spots are nudged up, and anything still blocked lands in `STARS_DROPPED`. Each star is a one-time
+  pickup (+100): it stays gone on later throws (`ppb-stars-<world>`). The HUD and result card show the running
+  count per world; the card has a two-tap "Reset <world> stars" button. Collecting the last one celebrates.
 - First-time players start in Harbor City (easiest to navigate, so it's the first impression for friends);
   after that the game reopens the last world played (`ppb-level`).
 - Music (`Music` in `07-fx-sound.js`): `audio/summer-sky-1.mp3` and `-2.mp3` take turns, starting on the first

@@ -84,13 +84,21 @@ console.log('\n== Paper stars');
   const g = s => vm.runInThisContext(s);
   if (!els.levelBtn.textContent.includes('Backyard')) els.levelBtn.h.click();
   const n = g('starsTotal()'), dropped = g('STARS_DROPPED.length');
-  g('resetThrow(); S.mode = "fly"; S.stars = 0; S.newStars = 0;');
-  g('{ const c = STARS.backyard.list[0].c; checkStars(new THREE.Vector3(c.x, c.y, c.z + 3), new THREE.Vector3(c.x, c.y, c.z - 3)); }');
-  const got = g('S.stars'), isNew = g('S.newStars'), saved = JSON.parse(mem['ppb-stars-backyard'] || '[]');
+  g('resetThrow(); S.mode = "fly"; S.stars = 0;');
+  const through = 'checkStars(new THREE.Vector3(c.x, c.y, c.z + 3), new THREE.Vector3(c.x, c.y, c.z - 3))';
+  g(`{ const c = STARS.backyard.list[0].c; ${through}; }`);
+  const got = g('S.stars'), saved = JSON.parse(mem['ppb-stars-backyard'] || '[]');
   g('checkStars(new THREE.Vector3(0, -50, 0), new THREE.Vector3(0, -50, 1));'); // nowhere near a star
-  const ok = n >= 15 && g('STARS.harbor.list.length') >= 12 && got === 1 && isNew === 1 && saved.length === 1 && g('S.stars') === 1;
+  g('resetThrow(); S.mode = "fly";'); // next throw: the collected star stays gone
+  g(`{ const c = STARS.backyard.list[0].c; ${through}; }`);
+  const gone = g('S.stars') === 0 && g('starsFound()') === 1;
+  g('resetCollection(); resetThrow(); S.mode = "fly";'); // reset brings it back
+  g(`{ const c = STARS.backyard.list[0].c; ${through}; }`);
+  const back = g('S.stars') === 1 && g('starsFound()') === 1;
+  g('resetCollection();');
+  const ok = n >= 15 && g('STARS.harbor.list.length') >= 12 && got === 1 && saved.length === 1 && gone && back;
   if (!ok) failures++;
-  console.log(`${ok ? 'ok ' : 'FAIL'} backyard ${n} stars, harbor ${g('STARS.harbor.list.length')}, dropped ${dropped} (stubbed geometry; check in a browser); fly-through picks up ${got} (new ${isNew}), saved ${saved.length}`);
+  console.log(`${ok ? 'ok ' : 'FAIL'} backyard ${n} stars, harbor ${g('STARS.harbor.list.length')}, dropped ${dropped} (stubbed geometry; check in a browser); pickup ${got}, saved ${saved.length}, stays collected next throw ${gone}, reset brings it back ${back}`);
   g('resetThrow();');
 }
 if (run('sound')) {

@@ -66,6 +66,7 @@ button:focus-visible{outline:3px dashed var(--ballpoint);outline-offset:3px}
 .card .big{font-family:var(--display);font-weight:700;font-size:3.6rem;line-height:1;font-variant-numeric:tabular-nums;margin:4px 0}
 .card .big small{font-size:1.6rem;font-weight:400}
 .card .found{font-size:1.05rem;margin:0;color:var(--pencil)}
+.card .reset{margin:2px 0 8px;font-size:.95rem;padding:3px 12px;color:var(--pencil);border-color:var(--pencil)}
 .card .found.fresh{color:var(--red-pencil);font-family:var(--display);font-weight:700}
 .card .sub{font-size:1.15rem;color:var(--pencil);margin:0 0 10px}
 .card .sub.newbest{color:var(--red-pencil);font-family:var(--display);font-weight:700;transform:rotate(-2deg)}
