@@ -1,6 +1,9 @@
 // Headless smoke test: runs the real game code against a stubbed browser + stubbed three.js,
 // then simulates throws in each world. It checks logic (flight, scoring, rings, hangar), not visuals.
-// Usage: node tools/smoke-test.js
+// Usage: node tools/smoke-test.js [section ...]
+//   No sections = everything. Loading the game and running 30 frames always happens first.
+//   Sections: backyard, harbor (simulated throws), hangar, stars, sound, quality.
+//   Pick what the change touches, e.g. a sound change: node tools/smoke-test.js sound
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
 
@@ -31,6 +34,12 @@ global.performance = { now: () => frames * 16 };
 let seed = 20261016;
 Math.random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
 
+const SECTIONS = ['backyard', 'harbor', 'hangar', 'stars', 'sound', 'quality'];
+const asked = process.argv.slice(2).map(a => a.toLowerCase());
+const bad = asked.filter(a => !SECTIONS.includes(a));
+if (bad.length) { console.error(`Unknown section: ${bad.join(', ')}. Choose from: ${SECTIONS.join(', ')}`); process.exit(2); }
+const run = name => !asked.length || asked.includes(name);
+
 const dir = path.join(__dirname, '..', 'js');
 const code = fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort().map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n;\n');
 vm.runInThisContext(code, { filename: 'game.js' });
@@ -39,6 +48,7 @@ const step = n => { for (let i = 0; i < n; i++) { rafCb(frames * 16); frames++; 
 const ev = (x, y) => ({ pointerId: 1, clientX: x, clientY: y, preventDefault() {} });
 step(30);
 let failures = 0;
+console.log(`ok  game loads and runs 30 frames${asked.length ? ' · sections: ' + asked.join(', ') : ''}`);
 function throwOnce(label, steer) {
   const g = els.game;
   g.h.pointerdown(ev(200, 300)); g.h.pointermove(ev(200, 560)); g.h.pointerup(ev(200, 560));
@@ -49,7 +59,8 @@ function throwOnce(label, steer) {
   console.log(`${ok ? 'ok ' : 'FAIL'} ${label.padEnd(26)} ${els.why.textContent} | ★ ${els.final.textContent} | ${els.stats2.textContent}`);
   els.again.h.click();
 }
-for (const world of ['Backyard', 'Harbor City']) {
+for (const [key, world] of [['backyard', 'Backyard'], ['harbor', 'Harbor City']]) {
+  if (!run(key)) continue;
   if (!els.levelBtn.textContent.includes(world)) els.levelBtn.h.click();
   console.log(`\n== ${els.levelBtn.textContent}`);
   throwOnce('plain throw');
@@ -57,6 +68,7 @@ for (const world of ['Backyard', 'Harbor City']) {
   throwOnce('snap loop', (n, g) => { if (n === 30) { g.h.pointerdown(ev(200, 400)); g.h.pointermove(ev(200, 320)); } if (n === 140) g.h.pointerup(ev(200, 320)); });
   throwOnce('double-swipe rolls', (n, g) => { if (n % 200 === 100 || n % 200 === 104) { g.h.pointerdown(ev(200, 400)); g.h.pointermove(ev(260, 400)); g.h.pointerup(ev(260, 400)); } });
 }
+if (run('hangar')) {
 console.log('\n== Hangar');
 els.hangarBtn.h.click(); step(10);
 els.hNew.h.click(); const made = els.hName.value;
@@ -66,8 +78,9 @@ const saved = JSON.parse(mem['ppb-hangar'] || '[]');
 const hangarOk = made.startsWith('My plane') && saved.length === 1;
 if (!hangarOk) failures++;
 console.log(`${hangarOk ? 'ok ' : 'FAIL'} new + copy + delete -> ${saved.length} saved design(s); flying: ${els.hangarBtn.textContent}`);
+}
+if (run('stars')) {
 console.log('\n== Paper stars');
-{
   const g = s => vm.runInThisContext(s);
   if (!els.levelBtn.textContent.includes('Backyard')) els.levelBtn.h.click();
   const n = g('starsTotal()'), dropped = g('STARS_DROPPED.length');
@@ -80,6 +93,35 @@ console.log('\n== Paper stars');
   console.log(`${ok ? 'ok ' : 'FAIL'} backyard ${n} stars, harbor ${g('STARS.harbor.list.length')}, dropped ${dropped} (stubbed geometry; check in a browser); fly-through picks up ${got} (new ${isNew}), saved ${saved.length}`);
   g('resetThrow();');
 }
+if (run('sound')) {
+  console.log('\n== Sound');
+  const g = s => vm.runInThisContext(s);
+  // a stand-in <audio> element: Node has no audio, so this records what the game asks of it
+  global.Audio = class { constructor() { this.src = ''; this.paused = true; this.volume = 1; this.h = {}; }
+    addEventListener(k, f) { this.h[k] = f; } play() { this.paused = false; return Promise.resolve(); } pause() { this.paused = true; } };
+  const input = (id, v) => { els[id].value = String(v); els[id].h.input({ target: els[id] }); };
+  g('Sfx.init();');
+  const started = g('!!Music.el && !Music.el.paused') && g("Music.el.src.endsWith('summer-sky-1.mp3')");
+  els.soundBtn.h.click();
+  const opened = els.sound.hidden === false && g('paused');
+  input('musicVol', 30);
+  const vol = g('Music.vol') === 0.3 && Math.abs(g('Music.el.volume') - 0.24) < 1e-9 && mem['ppb-music-vol'] === '0.3';
+  els.musicOn.h.click();
+  const off = g('!Music.on && Music.el.paused') && mem['ppb-music'] === '0' && els.musicVol.disabled === true;
+  els.musicOn.h.click();
+  const back = g('Music.on && !Music.el.paused');
+  g("Music.el.h.ended()");
+  const next = g("Music.el.src.endsWith('summer-sky-2.mp3') && !Music.el.paused") && els.nowPlaying.textContent.includes('reprise');
+  els.sfxOn.h.click(); const sfxOff = g('Sfx.muted') && mem['ppb-mute'] === '1';
+  els.sfxOn.h.click(); input('sfxVol', 40); const sfxVol = g('Sfx.vol') === 0.4 && mem['ppb-sfx-vol'] === '0.4';
+  els.soundClose.h.click(); const closed = els.sound.hidden === true && !g('paused');
+  const checks = { started, opened, vol, off, back, next, sfxOff, sfxVol, closed };
+  const failed = Object.keys(checks).filter(k => !checks[k]);
+  if (failed.length) failures++;
+  console.log(`${failed.length ? 'FAIL' : 'ok '} music starts on first tap, panel opens/closes, music on/off + volume, next track, effects on/off + volume${failed.length ? ' · failed: ' + failed.join(', ') : ''}`);
+  input('musicVol', 50); input('sfxVol', 100);
+}
+if (run('quality')) {
 console.log('\n== Quality governor');
 {
   const g = s => vm.runInThisContext(s);
@@ -93,6 +135,7 @@ console.log('\n== Quality governor');
   if (!ok) failures++;
   console.log(`${ok ? 'ok ' : 'FAIL'} 60fps keeps tier ${t1}; 33fps steps to tier ${t2} (scene ${g('sceneDPR()').toFixed(2)}x, shadow ${g('shadowRes()')})`);
   g('setQuality(0)'); g('Q.auto = false');
+}
 }
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed');
 process.exit(failures ? 1 : 0);

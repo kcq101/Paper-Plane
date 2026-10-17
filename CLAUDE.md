@@ -58,9 +58,13 @@ Kevin's feedback so far:
   `paperTexture` once silently replaced the plane's notebook paper with a plain sheet).
 
 ## Testing and publishing
-- `node tools/smoke-test.js` runs the real game code against a stubbed browser/three.js and plays
-  simulated throws in both worlds plus hangar actions. It checks logic only, not visuals. Run it after
-  every change.
+- `node tools/smoke-test.js [section ...]` runs the real game code against a stubbed browser/three.js (randomness
+  is seeded, so runs are identical). It checks logic only, not visuals. Loading the game always runs; then
+  pick only the sections a change touches (Kevin asked for targeted runs):
+  - `backyard`, `harbor`: simulated throws in that world (flight, wind, scoring, rings, birds, collisions)
+  - `hangar`: plane designs; `stars`: paper stars; `sound`: music + effects settings panel; `quality`: governor
+  - No sections = everything; use that for changes to shared code (flight, scoring, core, render) or before
+    a big push. Pure asset/art/CSS changes need only the load check plus the closest section.
 - `node tools/bundle.js` writes `dist/paper-planes.html` (single file) for publishing as the Claude
   artifact at https://claude.ai/artifact/LvFrEE7R81wehQGS1jnX4C (declare capabilities `{db:{}, user:{}}`). The
   music isn't inlined: publish `audio/summer-sky-1.mp3` and `audio/summer-sky-2.mp3` alongside it via `files`.

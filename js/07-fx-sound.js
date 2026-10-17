@@ -132,7 +132,7 @@ const Sfx = {
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); Music.unlock(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
+    if (!AC) { Music.unlock(); return; } // no Web Audio: music still plays through the <audio> element
     try {
       const c = this.ctx = new AC();
       this.master = c.createGain(); this.master.gain.value = this.level(); this.master.connect(c.destination);
