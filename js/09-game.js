@@ -110,10 +110,10 @@ function launch() {
 
 function updateStyleLine() { $('styleLine').textContent = `★ ${S.style} · rings ${S.rings}/${rings.length} · stars ${starsFound()}/${starsTotal()} · ${S.air.toFixed(1)}s`; }
 function heightAboveGround() { return S.pos.y - groundAt(S.pos.x, S.pos.z); }
-function award(name, pts) {
+function award(name, pts, at = S.pos) {
   S.combo = simT - S.lastTrick < 2.5 ? Math.min(5, S.combo + 1) : 1; S.lastTrick = simT;
   const got = pts * S.combo; S.style += got; S.tricks++;
-  popWord(S.combo > 1 ? `${name} x${S.combo}` : name, S.pos, S.combo > 1 ? '#f1b2a9' : '#ffd84a', 1.25);
+  popWord(S.combo > 1 ? `${name} x${S.combo}` : name, at, S.combo > 1 ? '#f1b2a9' : '#ffd84a', 1.25);
   Sfx.lift(); updateStyleLine();
 }
 function startTrick(type, dir = 0, quiet = false) {
@@ -140,10 +140,12 @@ function registerSwipe(dir) {
 /* ---------- wall riding ---------- */
 // Fly close alongside a tall wall or cliff and pull up hard: the plane flips belly-to-wall and rides along it
 // with a speed boost, and the camera swings in close and rolls so the wall looks like the ground.
-// Riding: slide left/right to climb or drop (gravity sags you slowly). Gaps up to a side street wide are carried
-// across (GAP JUMP bonus). Exits: let go of the pull, swipe away, run out of wall, or ride over the top (CREST).
+// Riding: you stay on without holding anything; slide left/right to climb or drop (gravity sags you slowly). Gaps up
+// to a side street wide are carried across (GAP JUMP bonus). Exits: drag away from the wall (screen-up), swipe away,
+// run out of wall, or ride over the top (CREST).
+// The plane's roll onto and off the wall follows the camera's roll (rideCam.k), so the plane stays upright on screen.
 const RIDE_GAP = 1.5, RIDE_ROLL = RM ? 0.5 : 1; // camera roll as a share of 90° (half with reduced motion)
-const rideCam = { tx: 0, tz: -1, nx: 1, nz: 0, k: 0 }; // k blends the normal camera (0) into the ride camera (1)
+const rideCam = { tx: 0, tz: -1, nx: 1, nz: 0, side: 1, k: 0 }; // k blends the normal camera (0) into the ride camera (1)
 let rideTips = 0, wallSeen = null, wallProbeN = 0;
 try { rideTips = +(localStorage.getItem('ppb-ridetips') || 0); } catch (e) {}
 function findWall() { // the nearest rideable wall on either side, running roughly the way the plane flies
@@ -157,12 +159,15 @@ function findWall() { // the nearest rideable wall on either side, running rough
   }
   return best;
 }
+// pop-up words go a few metres ahead along the wall: with the close ride camera, at the plane they'd fill the screen
+const rideAhead = R => new THREE.Vector3(S.pos.x + R.tx * 6 + R.nx * 0.8, S.pos.y + 0.4, S.pos.z + R.tz * 6 + R.nz * 0.8);
 function startRide(w) {
-  S.ride = { side: w.side, tx: w.tx, tz: w.tz, nx: w.nx, nz: w.nz, d: w.d, vy: clamp(Math.sin(S.g) * S.v, -2, 3), t: 0, lost: 0, rel: 0 };
+  S.ride = { side: w.side, tx: w.tx, tz: w.tz, nx: w.nx, nz: w.nz, d: w.d, vy: clamp(Math.sin(S.g) * S.v, -2, 3), t: 0, lost: 0, push: 0, armed: false };
+  rideCam.side = w.side;
   S.trick = null; S.stall = 0;
   S.v = Math.min(20, Math.max(S.v, 9) + 4); // the speed boost
-  popWord('WALL RIDE!', S.pos, '#c6e2ff', 1.25); Sfx.whoosh(1); shake = RM ? 0 : 0.1;
-  if (rideTips < 3 && !S.rideTipShown) { toast('Slide to climb or drop · let go to jump off'); S.rideTipShown = true; rideTips++; try { localStorage.setItem('ppb-ridetips', String(rideTips)); } catch (e) {} }
+  popWord('WALL RIDE!', rideAhead(S.ride), '#c6e2ff', 1.1); Sfx.whoosh(1); shake = RM ? 0 : 0.1;
+  if (rideTips < 3 && !S.rideTipShown) { toast('Slide to climb or drop · drag away from the wall to hop off'); S.rideTipShown = true; rideTips++; try { localStorage.setItem('ppb-ridetips', String(rideTips)); } catch (e) {} }
 }
 function stepRide(h, ix) {
   const R = S.ride; R.t += h;
@@ -173,18 +178,19 @@ function stepRide(h, ix) {
   S.pos.x += R.tx * S.v * h - R.nx * corr; S.pos.z += R.tz * S.v * h - R.nz * corr; S.pos.y += R.vy * h;
   R.d -= corr;
   S.yaw = Math.atan2(-R.tx, -R.tz); S.g = Math.atan2(R.vy, S.v);
-  S.bank += (R.side * Math.PI / 2 - S.bank) * Math.min(1, h * 12);
+  S.bank += (0 - S.bank) * Math.min(1, h * 8); // the on-screen roll comes from rideCam.k, not from bank
+  S.r = 1;
 }
 function endRide(kind) {
   const R = S.ride; if (!R) return;
   S.ride = null;
-  S.yaw += 0.3 * R.side; // peel away from the wall
+  S.yaw += 0.12 * R.side; // ease away from the wall (it rolls back level together with the camera)
   S.pos.x += R.nx * 0.3; S.pos.z += R.nz * 0.3;
   S.g = clamp(Math.atan2(R.vy, S.v) + (kind === 'crest' ? 0.3 : 0.12), -0.5, 0.6);
-  S.bank = R.side * 0.8;
+  S.bank = 0;
   if (S.mode !== 'fly' || R.t < 0.3) return;
   const pts = Math.round(40 + R.t * 90) + (kind === 'crest' ? 100 : kind === 'jump' ? 50 : 0);
-  award(kind === 'crest' ? 'CREST!' : `WALL RIDE ${R.t.toFixed(1)}s`, pts);
+  award(kind === 'crest' ? 'CREST!' : `WALL RIDE ${R.t.toFixed(1)}s`, pts, rideAhead(R));
 }
 // once a frame, before the physics substeps: keep the ride's wall up to date, or look for a wall to grab
 function rideFrame(dt, iy) {
@@ -193,12 +199,14 @@ function rideFrame(dt, iy) {
     gatherWalls(S.pos);
     const w = probeWall(S.pos, S.yaw, R.side);
     if (w && !w.crest) {
-      if (R.lost > 0.35) award('GAP JUMP!', 75); // sailed across a side street onto the next wall
+      if (R.lost > 0.35) award('GAP JUMP!', 75, rideAhead(R)); // sailed across a side street onto the next wall
       R.tx = w.tx; R.tz = w.tz; R.nx = w.nx; R.nz = w.nz; R.d = w.d; R.lost = 0;
     }
     else if (w && w.crest && R.vy > -0.5) { endRide('crest'); return; } // rode up and over the top
     else if ((R.lost += dt) > 0.9) { endRide('end'); return; } // carry across gaps up to about a side street wide
-    if (iy < 0.3) { if ((R.rel += dt) > 0.12) { endRide('let go'); return; } } else R.rel = 0;
+    // hop off by dragging away from the wall (screen-up), but only after the pull that grabbed the wall is released
+    if (input.y < 0.5) R.armed = true;
+    if (R.armed && input.y > 0.6) { if ((R.push += dt) > 0.08) { endRide('jump'); return; } } else R.push = 0;
     if (heightAboveGround() < 0.8) endRide('low');
     return;
   }
@@ -822,7 +830,8 @@ function update(dt, now) {
     const aoa = S.mode === 'fly' ? clamp((S.r - 1) * 0.1, -0.1, 0.25) : 0;
     plane.position.copy(S.pos);
     const tv = S.trick ? S.trick.vis : 0;
-    plane.rotation.set(S.g + aoa + (S.trick && S.trick.type === 'loop' ? tv : 0), S.yaw, -S.bank - (S.trick && S.trick.type === 'roll' ? tv : 0), 'YXZ');
+    const vb = S.bank + (rideCam.side * Math.PI / 2 - S.bank) * rideCam.k; // on a wall the plane lies belly-to-wall, rolling with the camera
+    plane.rotation.set(S.g + (S.ride ? 0 : aoa) + (S.trick && S.trick.type === 'loop' ? tv : 0), S.yaw, -vb - (S.trick && S.trick.type === 'roll' ? tv : 0), 'YXZ');
     $('dist').textContent = fmt(horiz(S.pos));
   }
 
@@ -850,13 +859,14 @@ function update(dt, now) {
     if (rk > 0.001) { // wall ride: close up, right behind the plane, with the wall as the floor
       tmpV.lerp(rideT.set(S.pos.x - rideCam.tx * 1.4 + rideCam.nx * 0.45, S.pos.y + 0.15, S.pos.z - rideCam.tz * 1.4 + rideCam.nz * 0.45), rk);
     }
-    camBase.lerp(tmpV, 1 - Math.exp(-dt * (3.5 + 22 * rk))); // tight follow while riding, so the plane stays close
+    const follow = S.ride ? 1 : rk; // follow tightly from the moment the ride starts, so the boosted plane never runs away from the camera
+    camBase.lerp(tmpV, 1 - Math.exp(-dt * (3.5 + 22 * follow)));
     const ahead = S.mode === 'fly' ? 2.6 : 0;
     // aim the camera through the plane (not past it) so the plane stays centered even with the side offset
     const ox = S.pos.x - camBase.x, oz = S.pos.z - camBase.z, ol = Math.hypot(ox, oz) || 1;
     lookT.set(S.pos.x + ox / ol * ahead, S.pos.y + 0.15, S.pos.z + oz / ol * ahead);
     if (rk > 0.001) lookT.lerp(rideT.set(S.pos.x + rideCam.tx * 2.6, S.pos.y, S.pos.z + rideCam.tz * 2.6), rk);
-    camLook.lerp(lookT, 1 - Math.exp(-dt * (6 + 18 * rk)));
+    camLook.lerp(lookT, 1 - Math.exp(-dt * (6 + 18 * follow)));
   }
   // the ride camera rolls so the wall's normal becomes "up"
   if (S.ride) { rideCam.tx = S.ride.tx; rideCam.tz = S.ride.tz; rideCam.nx = S.ride.nx; rideCam.nz = S.ride.nz; }

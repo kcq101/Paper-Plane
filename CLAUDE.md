@@ -25,10 +25,13 @@ Owner: Kevin. Iterates by playing on an Android phone and sending screenshots or
   count per world; the card has a two-tap "Reset <world> stars" button. Collecting the last one celebrates.
 - Wall riding (`probeWall` in `08-flight.js`, ride logic + camera in `09-game.js`): fly within ~6 m of a tall
   building face (box obstacle >= 4 m) or steep terrain (canyon cliffs) roughly parallel to it and pull up hard
-  (iy > 0.8): the plane flips belly-to-wall, gets a speed boost and holds a 1.5 m gap. Stick left/right =
-  up/down the wall; keep pulling to stay on. Gaps up to a side street are carried (GAP JUMP); exits: let go,
-  swipe away, run out of wall, or crest the top. The camera moves in close and rolls 90° so the wall is the
-  floor (`RIDE_ROLL`, 45° with reduced motion). White streaks show on a rideable wall beside you.
+  (iy > 0.8): the plane flips belly-to-wall, gets a speed boost and holds a 1.5 m gap. The wall is sticky (no
+  need to keep holding; Kevin found hold-to-stay awkward). Stick left/right = up/down the wall. Gaps up to a
+  side street are carried (GAP JUMP); exits: drag away from the wall (screen-up, raw input.y, after the grab
+  pull is released), swipe away, run out of wall, or crest the top. The camera snaps in close and rolls 90° so
+  the wall is the floor (`RIDE_ROLL`, 45° with reduced motion). The plane's on-screen roll is driven by the same
+  blend (`rideCam.k`) as the camera's, never by a separate bank, so it can't look like it flips on or off.
+  Ride pop-up words spawn 6 m ahead (`rideAhead`). White streaks show on a rideable wall beside you.
 - First-time players start in Harbor City (easiest to navigate, so it's the first impression for friends);
   after that the game reopens the last world played (`ppb-level`).
 - Music (`Music` in `07-fx-sound.js`): `audio/summer-sky-1.mp3` and `-2.mp3` take turns, starting on the first

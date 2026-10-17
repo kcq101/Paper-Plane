@@ -84,14 +84,15 @@ if (run('ride')) {
   const riding = !!g('S.ride'), gap = g('S.ride ? S.ride.d : -1'), dz = z0 - g('S.pos.z'), up = g('S.pos.y') > 6;
   const camRolled = g('rideCam.k') > 0.9; // (the stubbed camera can't report its roll; the browser check covers that)
   const style0 = g('S.style');
-  key('ArrowUp', false); step(20); // let go: jump off
+  key('ArrowUp', false); key(climbKey, false); step(20); // let go of everything: the wall is sticky, so you stay on
+  const sticky = !!g('S.ride');
+  key('ArrowUp', true); step(12); key('ArrowUp', false); // drag away from the wall (screen-up): hop off
   const off = !g('S.ride') && g('S.mode') === 'fly' && g('S.style') > style0;
-  key(climbKey, false);
   step(60); const camBack = g('rideCam.k') < 0.1;
-  const checks = { grabbed, riding, steadyGap: gap > 1 && gap < 2.2, travelled: dz > 8, climbed: up, boost: v0 >= 13, camRolled, letGoJumpsOff: off, cameraLevelsOut: camBack };
+  const checks = { grabbed, riding, steadyGap: gap > 1 && gap < 2.2, travelled: dz > 8, climbed: up, boost: v0 >= 13, camRolled, staysOnWhenLetGo: sticky, dragAwayHopsOff: off, cameraLevelsOut: camBack };
   const failed = Object.keys(checks).filter(k => !checks[k]);
   if (failed.length) failures++;
-  console.log(`${failed.length ? 'FAIL' : 'ok '} grab after ${n} frames (wall on the ${side > 0 ? 'right' : 'left'}), ride ${dz.toFixed(1)} m along it, gap ${gap.toFixed(2)} m, let go to jump off, camera rolls and levels out${failed.length ? ' · failed: ' + failed.join(', ') : ''}`);
+  console.log(`${failed.length ? 'FAIL' : 'ok '} grab after ${n} frames (wall on the ${side > 0 ? 'right' : 'left'}), ride ${dz.toFixed(1)} m along it, gap ${gap.toFixed(2)} m, stays on when you let go, drag away to hop off, camera rolls and levels out${failed.length ? ' · failed: ' + failed.join(', ') : ''}`);
   g('resetThrow();');
 }
 if (run('hangar')) {
