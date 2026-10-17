@@ -7,7 +7,7 @@
 const LOOP_V = 12;
 let loopTips = 0;
 try { loopTips = +(localStorage.getItem('ppb-looptips') || 0); } catch (e) {}
-const S = { tLow: 0, prevIy: 0, warnT: -9, trick: null, style: 0, tricks: 0, air: 0, combo: 0, lastTrick: -9, rings: 0, stars: 0, ringStreak: 0, lastRing: -9, hold: 0, lowWarned: false, birdHits: 0, mode: 'aim', pos: LAUNCH.clone(), v: 0, g: 0, yaw: 0, bank: 0, stall: 0, stalled: false, r: 1, slide: new THREE.Vector3(), reason: '', stick: false, endT: 0, bounces: 0 };
+const S = { tLow: 0, prevIy: 0, warnT: -9, trick: null, style: 0, tricks: 0, air: 0, combo: 0, lastTrick: -9, rings: 0, stars: 0, ride: null, ringStreak: 0, lastRing: -9, hold: 0, lowWarned: false, birdHits: 0, mode: 'aim', pos: LAUNCH.clone(), v: 0, g: 0, yaw: 0, bank: 0, stall: 0, stalled: false, r: 1, slide: new THREE.Vector3(), reason: '', stick: false, endT: 0, bounces: 0 };
 let simT = 0, invert = false, steered = false, paused = false;
 let best = null;
 // first-time players start in Harbor City (easiest to navigate); after that, reopen the last world played
@@ -82,7 +82,7 @@ function resetThrow() {
   camBase.copy(aimCamPos); camera.position.copy(aimCamPos); camLook.copy(aimCamLook);
   trailCount = 0; trail.visible = false;
   $('result').hidden = true; $('stall').hidden = true; $('tricks').hidden = true;
-  S.style = 0; S.air = 0; S.tricks = 0; S.trick = null; S.rings = 0; S.stars = 0; resetStars(); updateStyleLine();
+  S.style = 0; S.air = 0; S.tricks = 0; S.trick = null; S.rings = 0; S.stars = 0; S.ride = null; wallSeen = null; resetStars(); updateStyleLine();
   rings.forEach(r => { r.got = false; r.t = 0; r.mesh.visible = true; r.mesh.scale.setScalar(1); });
   birds.forEach(b => { b.gone = false; b.near = false; b.g.visible = true; });
   $('dist').textContent = '0.0';
@@ -101,7 +101,7 @@ function launch() {
   S.g = 0.03 + aim.pull * 0.03;
   S.yaw = aim.yaw; S.bank = 0; S.stalled = false; S.stall = 0; S.bounces = 0;
   S.trick = null; S.style = 0; S.tricks = 0; S.air = 0; S.combo = 0; S.lastTrick = -9;
-  S.rings = 0; S.stars = 0; S.ringStreak = 0; S.lastRing = -9; S.tLow = 0; S.prevIy = 0; S.tipShown = false; S.birdHits = 0;
+  S.rings = 0; S.stars = 0; S.ride = null; S.rideTipShown = false; S.rideHint = false; S.ringStreak = 0; S.lastRing = -9; S.tLow = 0; S.prevIy = 0; S.tipShown = false; S.birdHits = 0;
   updateStyleLine();
   simT = 0; preview.visible = false; trailCount = 0;
   Sfx.whoosh(aim.pull);
@@ -117,7 +117,7 @@ function award(name, pts) {
   Sfx.lift(); updateStyleLine();
 }
 function startTrick(type, dir = 0, quiet = false) {
-  if (S.mode !== 'fly' || S.trick) return false;
+  if (S.mode !== 'fly' || S.trick || S.ride) return false;
   Sfx.init();
   if (type === 'loop') {
     if (heightAboveGround() < 6) { if (!quiet) toast('Get a little higher for a loop'); return false; }
@@ -132,9 +132,100 @@ function startTrick(type, dir = 0, quiet = false) {
 }
 let lastSwipe = null;
 function registerSwipe(dir) {
+  if (S.ride) { if (dir === -S.ride.side) endRide('jump'); return; }
   const now = performance.now();
   if (lastSwipe && lastSwipe.dir === dir && now - lastSwipe.t < 600) { lastSwipe = null; startTrick('roll', dir); }
   else lastSwipe = { dir, t: now };
+}
+/* ---------- wall riding ---------- */
+// Fly close alongside a tall wall or cliff and pull up hard: the plane flips belly-to-wall and rides along it
+// with a speed boost, and the camera swings in close and rolls so the wall looks like the ground.
+// Riding: slide left/right to climb or drop (gravity sags you slowly). Gaps up to a side street wide are carried
+// across (GAP JUMP bonus). Exits: let go of the pull, swipe away, run out of wall, or ride over the top (CREST).
+const RIDE_GAP = 1.5, RIDE_ROLL = RM ? 0.5 : 1; // camera roll as a share of 90° (half with reduced motion)
+const rideCam = { tx: 0, tz: -1, nx: 1, nz: 0, k: 0 }; // k blends the normal camera (0) into the ride camera (1)
+let rideTips = 0, wallSeen = null, wallProbeN = 0;
+try { rideTips = +(localStorage.getItem('ppb-ridetips') || 0); } catch (e) {}
+function findWall() { // the nearest rideable wall on either side, running roughly the way the plane flies
+  gatherWalls(S.pos);
+  const fx = -Math.sin(S.yaw), fz = -Math.cos(S.yaw);
+  let best = null;
+  for (const side of [1, -1]) {
+    const w = probeWall(S.pos, S.yaw, side);
+    if (!w || w.crest || w.d > 6 || w.tx * fx + w.tz * fz < 0.75) continue;
+    if (!best || w.d < best.d) best = w;
+  }
+  return best;
+}
+function startRide(w) {
+  S.ride = { side: w.side, tx: w.tx, tz: w.tz, nx: w.nx, nz: w.nz, d: w.d, vy: clamp(Math.sin(S.g) * S.v, -2, 3), t: 0, lost: 0, rel: 0 };
+  S.trick = null; S.stall = 0;
+  S.v = Math.min(20, Math.max(S.v, 9) + 4); // the speed boost
+  popWord('WALL RIDE!', S.pos, '#c6e2ff', 1.25); Sfx.whoosh(1); shake = RM ? 0 : 0.1;
+  if (rideTips < 3 && !S.rideTipShown) { toast('Slide to climb or drop · let go to jump off'); S.rideTipShown = true; rideTips++; try { localStorage.setItem('ppb-ridetips', String(rideTips)); } catch (e) {} }
+}
+function stepRide(h, ix) {
+  const R = S.ride; R.t += h;
+  const want = clamp(ix * R.side, -1, 1) * 5 - 1.2; // with the camera rolled, stick left/right is up/down the wall
+  R.vy += (want - R.vy) * Math.min(1, h * 4);
+  S.v = Math.max(10, S.v - 0.3 * h);
+  const corr = (R.d - RIDE_GAP) * Math.min(1, h * 6); // hold a steady gap from the wall
+  S.pos.x += R.tx * S.v * h - R.nx * corr; S.pos.z += R.tz * S.v * h - R.nz * corr; S.pos.y += R.vy * h;
+  R.d -= corr;
+  S.yaw = Math.atan2(-R.tx, -R.tz); S.g = Math.atan2(R.vy, S.v);
+  S.bank += (R.side * Math.PI / 2 - S.bank) * Math.min(1, h * 12);
+}
+function endRide(kind) {
+  const R = S.ride; if (!R) return;
+  S.ride = null;
+  S.yaw += 0.3 * R.side; // peel away from the wall
+  S.pos.x += R.nx * 0.3; S.pos.z += R.nz * 0.3;
+  S.g = clamp(Math.atan2(R.vy, S.v) + (kind === 'crest' ? 0.3 : 0.12), -0.5, 0.6);
+  S.bank = R.side * 0.8;
+  if (S.mode !== 'fly' || R.t < 0.3) return;
+  const pts = Math.round(40 + R.t * 90) + (kind === 'crest' ? 100 : kind === 'jump' ? 50 : 0);
+  award(kind === 'crest' ? 'CREST!' : `WALL RIDE ${R.t.toFixed(1)}s`, pts);
+}
+// once a frame, before the physics substeps: keep the ride's wall up to date, or look for a wall to grab
+function rideFrame(dt, iy) {
+  if (S.ride) {
+    const R = S.ride;
+    gatherWalls(S.pos);
+    const w = probeWall(S.pos, S.yaw, R.side);
+    if (w && !w.crest) {
+      if (R.lost > 0.35) award('GAP JUMP!', 75); // sailed across a side street onto the next wall
+      R.tx = w.tx; R.tz = w.tz; R.nx = w.nx; R.nz = w.nz; R.d = w.d; R.lost = 0;
+    }
+    else if (w && w.crest && R.vy > -0.5) { endRide('crest'); return; } // rode up and over the top
+    else if ((R.lost += dt) > 0.9) { endRide('end'); return; } // carry across gaps up to about a side street wide
+    if (iy < 0.3) { if ((R.rel += dt) > 0.12) { endRide('let go'); return; } } else R.rel = 0;
+    if (heightAboveGround() < 0.8) endRide('low');
+    return;
+  }
+  if (S.trick || S.v < 5 || heightAboveGround() < 2) { wallSeen = null; return; }
+  if (iy > 0.8) { const w = findWall(); if (w) { startRide(w); wallSeen = null; return; } }
+  if (++wallProbeN % 3 === 0) { // every few frames: is there a wall worth riding right here?
+    wallSeen = findWall();
+    if (wallSeen && rideTips < 3 && !S.rideTipShown && !S.rideHint) { toast('Pull up hard to ride the wall!'); S.rideHint = true; }
+  }
+}
+// wall streaks: a few white wisps on a rideable wall beside you, faster while you ride it
+const wallStreaks = new THREE.Group(); wallStreaks.visible = false; wallStreaks.renderOrder = 3; scene.add(wallStreaks);
+const streakBits = [0, 1, 2, 3, 4, 5].map(i => {
+  const m = lineSeg([0, 0, 0, 1.6 + (i % 3) * 0.7, 0, 0], { c: '#ffffff', px: 1.6, op: 0.7, keep: true, jit: 0 }, 0.8, 1.1);
+  m.userData = { y: [-1.7, 0.6, -0.4, 1.8, -1.1, 1.2][i], ph: i / 6 }; wallStreaks.add(m); return m;
+});
+const _sb = new THREE.Matrix4(), _sx = new THREE.Vector3(), _sy = new THREE.Vector3(0, 1, 0), _sz = new THREE.Vector3();
+function updateStreaks(dt) {
+  const w = S.mode === 'fly' ? (S.ride || wallSeen) : null;
+  wallStreaks.visible = !!w;
+  if (!w) return;
+  _sx.set(w.tx, 0, w.tz); _sz.set(-w.tz, 0, w.tx);
+  _sb.makeBasis(_sx, _sy, _sz); wallStreaks.quaternion.setFromRotationMatrix(_sb);
+  const off = w.d - 0.35; // just off the wall's surface
+  wallStreaks.position.set(S.pos.x - w.nx * off, S.pos.y, S.pos.z - w.nz * off);
+  const sp = (S.ride ? 0.09 : 0.03) * Math.max(4, S.v);
+  streakBits.forEach(m => { const u = m.userData; u.ph = (u.ph + dt * sp / 16) % 1; m.position.set(10 - u.ph * 16, u.y, 0); });
 }
 // rings, birds
 function checkRings(a, b) {
@@ -573,7 +664,7 @@ addEventListener('resize', resize);
 
 /* ---------- per-frame ---------- */
 const tmpV = new THREE.Vector3(), prevPos = new THREE.Vector3();
-const lookT = new THREE.Vector3();
+const lookT = new THREE.Vector3(), rideT = new THREE.Vector3();
 function update(dt, now) {
   const tt = now / 1000;
   if (level === 'backyard' && !look) { // (sketch look only) the view opens up past the hedge
@@ -652,15 +743,17 @@ function update(dt, now) {
     const n = Math.ceil(dt / (1 / 120)), h = dt / n;
     const iy = input.y * (invert ? -1 : 1);
     const zone = zoneAt(S.pos);
+    rideFrame(dt, iy);
     for (let i = 0; i < n; i++) {
       prevPos.copy(S.pos);
-      if (S.trick && S.trick.type === 'loop') stepLoop(h); else stepFlight(S, h, input.x, iy, simT);
+      if (S.ride) stepRide(h, input.x);
+      else if (S.trick && S.trick.type === 'loop') stepLoop(h); else stepFlight(S, h, input.x, iy, simT);
       if (S.trick && S.trick.type === 'roll') { // a roll also hops you sideways (dodge birds)
         const tr = S.trick, k = Math.min(1, tr.t / tr.dur), sp = 6.5 * Math.sin(Math.PI * k) * Math.PI / 2 / tr.dur * h;
         S.pos.x += Math.cos(S.yaw) * tr.dir * sp; S.pos.z += -Math.sin(S.yaw) * tr.dir * sp;
       }
       if (level !== 'classroom') { checkRings(prevPos, S.pos); checkStars(prevPos, S.pos); checkBirds(); }
-      S.bank += (Math.random() - 0.5) * h * 5 * S.stall;
+      if (!S.ride) S.bank += (Math.random() - 0.5) * h * 5 * S.stall;
       if (zone === 'devil') S.bank += Math.sin(simT * 15) * h * 3;
       simT += h;
       const hit = collide(S.pos);
@@ -684,7 +777,7 @@ function update(dt, now) {
       if (iy < 0.3) S.tLow = simT;
       const snapped = iy > 0.85 && S.prevIy <= 0.85 && simT - S.tLow < 0.25;
       S.prevIy = iy;
-      if (snapped && !S.trick) {
+      if (snapped && !S.trick && !S.ride) {
         // a quiet tip at most once per flight, and only for the first few flights it comes up
         const tip = S.v < LOOP_V ? 'Tip: dive first to build speed for a loop' : (!startTrick('loop', 0, true) ? 'Tip: loops need a bit more height' : null);
         if (tip && !S.tipShown && loopTips < 3) { toast(tip); S.tipShown = true; loopTips++; try { localStorage.setItem('ppb-looptips', String(loopTips)); } catch (e) {} }
@@ -720,6 +813,8 @@ function update(dt, now) {
     S.bank += Math.sin(S.endT * 30) * dt * 3 * Math.max(0, 1 - S.endT * 2);
     if (S.endT > 0.9) finish();
   }
+  if (S.mode !== 'fly' && S.ride) S.ride = null;
+  updateStreaks(dt);
   Object.keys(zoneCool).forEach(k => { zoneCool[k] -= dt; });
   if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('toast').classList.add('off'); }
 
@@ -751,13 +846,23 @@ function update(dt, now) {
       const cx = S.pos.x - hx * 2.8, cz = S.pos.z - hz * 2.8;
       tmpV.set(cx, Math.max(groundAt(cx, cz) + 0.45, S.pos.y + 0.9), cz);
     }
-    camBase.lerp(tmpV, 1 - Math.exp(-dt * 3.5));
+    const rk = rideCam.k;
+    if (rk > 0.001) { // wall ride: close up, right behind the plane, with the wall as the floor
+      tmpV.lerp(rideT.set(S.pos.x - rideCam.tx * 1.4 + rideCam.nx * 0.45, S.pos.y + 0.15, S.pos.z - rideCam.tz * 1.4 + rideCam.nz * 0.45), rk);
+    }
+    camBase.lerp(tmpV, 1 - Math.exp(-dt * (3.5 + 22 * rk))); // tight follow while riding, so the plane stays close
     const ahead = S.mode === 'fly' ? 2.6 : 0;
     // aim the camera through the plane (not past it) so the plane stays centered even with the side offset
     const ox = S.pos.x - camBase.x, oz = S.pos.z - camBase.z, ol = Math.hypot(ox, oz) || 1;
     lookT.set(S.pos.x + ox / ol * ahead, S.pos.y + 0.15, S.pos.z + oz / ol * ahead);
-    camLook.lerp(lookT, 1 - Math.exp(-dt * 6));
+    if (rk > 0.001) lookT.lerp(rideT.set(S.pos.x + rideCam.tx * 2.6, S.pos.y, S.pos.z + rideCam.tz * 2.6), rk);
+    camLook.lerp(lookT, 1 - Math.exp(-dt * (6 + 18 * rk)));
   }
+  // the ride camera rolls so the wall's normal becomes "up"
+  if (S.ride) { rideCam.tx = S.ride.tx; rideCam.tz = S.ride.tz; rideCam.nx = S.ride.nx; rideCam.nz = S.ride.nz; }
+  rideCam.k += ((S.ride ? 1 : 0) - rideCam.k) * Math.min(1, dt * (S.ride ? 7 : 4));
+  const ru = rideCam.k * RIDE_ROLL;
+  camera.up.set(rideCam.nx * ru, 1 - ru, rideCam.nz * ru).normalize();
   camera.position.copy(camBase);
   if (shake > 0.002) { camera.position.x += (Math.random() - 0.5) * shake; camera.position.y += (Math.random() - 0.5) * shake; shake *= Math.exp(-dt * 7); }
   camera.lookAt(camLook);

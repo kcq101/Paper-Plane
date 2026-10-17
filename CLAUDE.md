@@ -23,6 +23,12 @@ Owner: Kevin. Iterates by playing on an Android phone and sending screenshots or
   load; blocked spots are nudged up, and anything still blocked lands in `STARS_DROPPED`. Each star is a one-time
   pickup (+100): it stays gone on later throws (`ppb-stars-<world>`). The HUD and result card show the running
   count per world; the card has a two-tap "Reset <world> stars" button. Collecting the last one celebrates.
+- Wall riding (`probeWall` in `08-flight.js`, ride logic + camera in `09-game.js`): fly within ~6 m of a tall
+  building face (box obstacle >= 4 m) or steep terrain (canyon cliffs) roughly parallel to it and pull up hard
+  (iy > 0.8): the plane flips belly-to-wall, gets a speed boost and holds a 1.5 m gap. Stick left/right =
+  up/down the wall; keep pulling to stay on. Gaps up to a side street are carried (GAP JUMP); exits: let go,
+  swipe away, run out of wall, or crest the top. The camera moves in close and rolls 90° so the wall is the
+  floor (`RIDE_ROLL`, 45° with reduced motion). White streaks show on a rideable wall beside you.
 - First-time players start in Harbor City (easiest to navigate, so it's the first impression for friends);
   after that the game reopens the last world played (`ppb-level`).
 - Music (`Music` in `07-fx-sound.js`): `audio/summer-sky-1.mp3` and `-2.mp3` take turns, starting on the first
@@ -63,6 +69,7 @@ Kevin's feedback so far:
   is seeded, so runs are identical). It checks logic only, not visuals. Loading the game always runs; then
   pick only the sections a change touches (Kevin asked for targeted runs):
   - `backyard`, `harbor`: simulated throws in that world (flight, wind, scoring, rings, birds, collisions)
+  - `ride`: grabs a Harbor City wall, rides it, climbs, lets go (canyon terrain is stubbed in Node; check it in a browser)
   - `hangar`: plane designs; `stars`: paper stars; `sound`: music + effects settings panel; `quality`: governor
   - No sections = everything; use that for changes to shared code (flight, scoring, core, render) or before
     a big push. Pure asset/art/CSS changes need only the load check plus the closest section.
@@ -72,6 +79,6 @@ Kevin's feedback so far:
 - GitHub Pages serves the repo root from `main`.
 
 ## Ideas queued (from Kevin's list)
-Updraft surfing (skim walls for lift + bonus), gust bursts, daily challenges,
+Thermal climbing (circle in thermals for a CLIMB chain + glider-style beeper), gust bursts, daily challenges,
 ghost replay of best flight, landing targets, photo mode, weather/time of day. Performance leftovers (only if
 phones still struggle): merge harbor clutter (~270 draw calls), upgrade three.js.

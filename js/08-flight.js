@@ -98,27 +98,73 @@ function stepFlight(s, dt, ix, iy, t) {
   s.pos.z += (-Math.cos(s.yaw) * cg * s.v + _w.z) * dt;
   s.r = r;
 }
-function collide(p) {
-  for (const o of obstacles) {
-    if (o.t === 'box') {
-      if (p.x > o.min[0] && p.x < o.max[0] && p.y > o.min[1] && p.y < o.max[1] && p.z > o.min[2] && p.z < o.max[2]) return o;
-    } else if (o.t === 'sph') {
-      const dx = p.x - o.c[0], dy = p.y - o.c[1], dz = p.z - o.c[2];
-      if (dx * dx + dy * dy + dz * dz < o.r * o.r) return o;
-    } else if (o.t === 'cyl') {
-      const dx = p.x - o.x, dz = p.z - o.z;
-      if (p.y < o.h && dx * dx + dz * dz < o.r * o.r) return o;
-    } else if (o.t === 'seg') {
-      const abx = o.b[0] - o.a[0], aby = o.b[1] - o.a[1], abz = o.b[2] - o.a[2];
-      const t = clamp(((p.x - o.a[0]) * abx + (p.y - o.a[1]) * aby + (p.z - o.a[2]) * abz) / (abx * abx + aby * aby + abz * abz), 0, 1);
-      if (Math.hypot(p.x - o.a[0] - abx * t, p.y - o.a[1] - aby * t, p.z - o.a[2] - abz * t) < o.r) return o;
-    } else if (o.t === 'arc') {
-      const rr = Math.hypot(p.x, p.z);
-      if (Math.abs(rr - o.r) < o.th && p.y < o.h) {
-        const a = Math.abs(Math.atan2(p.x, -p.z));
-        if (a <= o.maxA && a >= o.gate) return o;
-      }
-    }
+function hitObstacle(o, p) {
+  if (o.t === 'box') return p.x > o.min[0] && p.x < o.max[0] && p.y > o.min[1] && p.y < o.max[1] && p.z > o.min[2] && p.z < o.max[2];
+  if (o.t === 'sph') { const dx = p.x - o.c[0], dy = p.y - o.c[1], dz = p.z - o.c[2]; return dx * dx + dy * dy + dz * dz < o.r * o.r; }
+  if (o.t === 'cyl') { const dx = p.x - o.x, dz = p.z - o.z; return p.y < o.h && dx * dx + dz * dz < o.r * o.r; }
+  if (o.t === 'seg') {
+    const abx = o.b[0] - o.a[0], aby = o.b[1] - o.a[1], abz = o.b[2] - o.a[2];
+    const t = clamp(((p.x - o.a[0]) * abx + (p.y - o.a[1]) * aby + (p.z - o.a[2]) * abz) / (abx * abx + aby * aby + abz * abz), 0, 1);
+    return Math.hypot(p.x - o.a[0] - abx * t, p.y - o.a[1] - aby * t, p.z - o.a[2] - abz * t) < o.r;
   }
+  if (o.t === 'arc') {
+    const rr = Math.hypot(p.x, p.z);
+    if (Math.abs(rr - o.r) < o.th && p.y < o.h) { const a = Math.abs(Math.atan2(p.x, -p.z)); return a <= o.maxA && a >= o.gate; }
+  }
+  return false;
+}
+function collide(p) {
+  for (const o of obstacles) if (hitObstacle(o, p)) return o;
   return null;
+}
+
+/* ---------- wall riding: finding a wall beside the plane ---------- */
+// A rideable wall is a tall building face (box obstacles at least 4 m high) or a steep terrain face
+// (the canyon cliffs and mesas). Trees, posts, lines and fences never count.
+// probeWall casts short horizontal rays to one side of the plane and returns the wall's distance, its
+// direction along the wall (t, pointing the way the plane flies) and its normal (n, pointing back at the plane).
+const WALL_REACH = 7, WALL_STEP = 0.4;
+let wallBoxes = [];
+function gatherWalls(p) {
+  wallBoxes = obstacles.filter(o => o.t === 'box' && o.max[1] - o.min[1] >= 4 &&
+    p.x > o.min[0] - WALL_REACH - 3 && p.x < o.max[0] + WALL_REACH + 3 && p.z > o.min[2] - WALL_REACH - 3 && p.z < o.max[2] + WALL_REACH + 3);
+}
+const _wp = new THREE.Vector3();
+function wallSolid(x, y, z) {
+  if (y <= groundAt(x, z)) return true;
+  _wp.set(x, y, z);
+  for (const o of wallBoxes) if (hitObstacle(o, _wp)) return true;
+  return false;
+}
+function wallRay(x, y, z, dx, dz) { // distance to the first wall along (dx, dz), or -1
+  let prev = 0;
+  for (let d = 0.3; d <= WALL_REACH; d += WALL_STEP) {
+    if (wallSolid(x + dx * d, y, z + dz * d)) {
+      let a = prev, b = d; // refine the hit a little
+      for (let k = 0; k < 4; k++) { const m = (a + b) / 2; if (wallSolid(x + dx * m, y, z + dz * m)) b = m; else a = m; }
+      return b;
+    }
+    prev = d;
+  }
+  return -1;
+}
+function probeWall(p, yaw, side) {
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+  const dx = -fz * side, dz = fx * side; // toward the wall: right of the heading when side = 1
+  if (p.y <= groundAt(p.x, p.z) + 0.6) return null;
+  const d0 = wallRay(p.x, p.y, p.z, dx, dz);
+  if (d0 < 0) return null;
+  // two more rays a little ahead and behind give the wall's direction
+  const S = 1.4;
+  const dA = wallRay(p.x + fx * S, p.y, p.z + fz * S, dx, dz), dB = wallRay(p.x - fx * S, p.y, p.z - fz * S, dx, dz);
+  if (dA < 0 || dB < 0) return null;
+  let tx = (fx * S + dx * dA) - (-fx * S + dx * dB), tz = (fz * S + dz * dA) - (-fz * S + dz * dB);
+  const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+  if (tx * fx + tz * fz < 0) { tx = -tx; tz = -tz; }
+  let nx = -tz, nz = tx;
+  if (nx * dx + nz * dz > 0) { nx = -nx; nz = -nz; } // normal points away from the wall, back at the plane
+  // it has to be a real wall: still there a little higher up, at about the same distance
+  const dU = wallRay(p.x, p.y + 1.5, p.z, dx, dz);
+  if (dU < 0 || Math.abs(dU - d0) > 1.8) return { d: d0, tx, tz, nx, nz, side, crest: true };
+  return { d: d0, tx, tz, nx, nz, side, crest: false };
 }
