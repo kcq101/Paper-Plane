@@ -65,6 +65,7 @@ console.log(`${hangarOk ? 'ok ' : 'FAIL'} new + copy + delete -> ${saved.length}
 console.log('\n== Quality governor');
 {
   const g = s => vm.runInThisContext(s);
+  g('Q.auto = true'); // the governor is off by default; switch it on to test the logic
   const t0 = g('qTier'); let now = 10000;
   for (let i = 0; i < 95; i++) g(`governor(${now += 16}, 16)`); // steady 60 fps: stays put
   const t1 = g('qTier');
@@ -73,7 +74,7 @@ console.log('\n== Quality governor');
   const ok = t0 === 0 && t1 === 0 && t2 === 1 && g('sceneDPR()') < 2;
   if (!ok) failures++;
   console.log(`${ok ? 'ok ' : 'FAIL'} 60fps keeps tier ${t1}; 33fps steps to tier ${t2} (scene ${g('sceneDPR()').toFixed(2)}x, shadow ${g('shadowRes()')})`);
-  g('setQuality(0)');
+  g('setQuality(0)'); g('Q.auto = false');
 }
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed');
 process.exit(failures ? 1 : 0);

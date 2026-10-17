@@ -35,12 +35,13 @@ Kevin's feedback so far:
 - He prefers concrete options and iterates quickly; ask before big art changes.
 
 ## Performance (phones)
-- The scene renders into an offscreen target at `sceneDPR()`; the canvas only shows the post quad, so it has
-  no MSAA. The HUD overlay canvas always uses full `DPR`.
-- Quality governor (`governor` in `11-render-boot.js`): every 90 frames it takes the median frame time; above
-  21 ms it steps one tier down `QTIERS` (render scale 1 → 0.85 → 0.75 + 2048 shadow map → 0.62). Never steps
-  back up within a session. Outline width, hatching and grain stay in screen pixels at every tier.
-- URL switches: `?q=0..3` pins a tier, `?fps` shows a frame-rate / tier readout (bottom-left).
+- The scene renders into an offscreen target at `sceneDPR()` (full `DPR` unless `?q=` forces a lower tier).
+- Quality governor (`governor` in `11-render-boot.js`) is **off** (`Q.auto = false`): on Kevin's phone a lower
+  render scale looked soft and shimmery and did not raise the frame rate (still 35-45 fps in flight), so the
+  bottleneck is not pixel fill. Likely draw calls / CPU; investigate before turning it back on.
+- URL switches: `?q=0..3` forces a tier, `?fps` shows fps, tier, render scale and the GPU driver name.
+- Post shader samplers are declared `highp`: mobile GPUs default `sampler2D` to lowp, which (in Android
+  Chrome, not the Claude app) quantized depth into screen-wide dark outline bands across the ground.
 - Paper grain is baked once into a 512 px tiling texture (`grainTex`); the paint-wash warp (`LOOK.water`) is
   compiled out with `#if WATER` while it's 0.
 - All js/ files share one global scope: never reuse a top-level name across files (a duplicate

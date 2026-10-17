@@ -28,7 +28,7 @@ const grainTex = (() => {
     return (h(0, 0) * (1 - ux) + h(1, 0) * ux) * (1 - uy) + (h(0, 1) * (1 - ux) + h(1, 1) * ux) * uy;
   };
   const fbm = (x, y, px, py) => { let v = 0, a = 0.5; for (let i = 0; i < 4; i++) { v += a * noise(x, y, px, py); x *= 2; y *= 2; px *= 2; py *= 2; a *= 0.5; } return v; };
-  const PAP = 233, FIBX = 171, FIBY = 16; // lattice cells per tile (≈ the original sp/2.2 and sp/vec2(3,16) scales)
+  const PAP = 233, FIBX = 171, FIBY = 32; // lattice cells per tile (≈ the original sp/2.2 and sp/vec2(3,16) scales)
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const pap = fbm(x * PAP / N, y * PAP / N, PAP, PAP), fib = fbm(x * FIBX / N, y * FIBY / N, FIBX, FIBY);
     const k = (y * N + x) * 4;
@@ -47,9 +47,9 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMate
   uniforms: postU, depthTest: false, depthWrite: false,
   defines: { WATER: LOOK.water > 0 ? 1 : 0 }, // the paint-wash warp is off in the chosen look, so compile it out
   vertexShader: `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`,
-  fragmentShader: `uniform sampler2D tColor;uniform sampler2D tDepth;uniform vec2 uRes;uniform float uSat;uniform float uGrain;uniform float uWater;
-uniform float uNear;uniform float uFar;uniform float uThick;uniform vec3 uInk;uniform float uFogD;uniform sampler2D tGrain;uniform float uGrainK;varying vec2 vUv;
-float lin(vec2 q){float d=texture2D(tDepth,q).x;float z=d*2.0-1.0;return 2.0*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
+  fragmentShader: `uniform highp sampler2D tColor;uniform highp sampler2D tDepth;uniform vec2 uRes;uniform float uSat;uniform float uGrain;uniform float uWater;
+uniform float uNear;uniform float uFar;uniform float uThick;uniform vec3 uInk;uniform float uFogD;uniform highp sampler2D tGrain;uniform float uGrainK;varying vec2 vUv;
+float lin(vec2 q){highp float d=texture2D(tDepth,q).x;float z=d*2.0-1.0;return 2.0*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
 #if WATER
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),u.x),u.y);}
@@ -82,13 +82,16 @@ function renderFrame() {
   renderer.setRenderTarget(null); renderer.render(postScene, postCam);
 }
 
-/* ---------- quality governor: steps down (never up) when a phone can't hold ~48 fps ---------- */
-const Q = { pinned: !!QPARAM, samples: [], settleUntil: 3000, fpsEl: null, fpsT: 0, fpsN: 0 };
+/* ---------- quality governor: off (Q.auto) since lower resolution looked worse without being faster ---------- */
+const Q = { auto: false, pinned: !!QPARAM, samples: [], settleUntil: 3000, fpsEl: null, fpsT: 0, fpsN: 0 };
 if (/[?&]fps\b/.test(URLQ)) {
   Q.fpsEl = document.createElement('div');
   Object.assign(Q.fpsEl.style, { position: 'fixed', left: '6px', bottom: '6px', zIndex: 50, font: '12px monospace', color: '#3a2a26',
-    background: 'rgba(251,250,244,0.8)', padding: '2px 5px', borderRadius: '4px', pointerEvents: 'none' });
+    background: 'rgba(251,250,244,0.8)', padding: '2px 5px', borderRadius: '4px', pointerEvents: 'none', maxWidth: 'calc(100% - 12px)' });
   document.body.appendChild(Q.fpsEl);
+  // which graphics driver is drawing (Chrome and the Claude app can differ on the same phone)
+  try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+    Q.gpu = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)).slice(0, 48) : ''; } catch (e) { Q.gpu = ''; }
 }
 function setQuality(t) {
   const sh0 = shadowRes();
@@ -103,9 +106,9 @@ function setQuality(t) {
 function governor(now, rawMs) {
   if (Q.fpsEl) {
     Q.fpsN++;
-    if (now - Q.fpsT > 500) { Q.fpsEl.textContent = `${Math.round(Q.fpsN * 1000 / (now - Q.fpsT))} fps · q${qTier} · ${sceneDPR().toFixed(2)}x`; Q.fpsT = now; Q.fpsN = 0; }
+    if (now - Q.fpsT > 500) { Q.fpsEl.textContent = `${Math.round(Q.fpsN * 1000 / (now - Q.fpsT))} fps · q${qTier} · ${sceneDPR().toFixed(2)}x${Q.gpu ? ' · ' + Q.gpu : ''}`; Q.fpsT = now; Q.fpsN = 0; }
   }
-  if (Q.pinned || qTier >= QTIERS.length - 1) return;
+  if (!Q.auto || Q.pinned || qTier >= QTIERS.length - 1) return;
   if (now < Q.settleUntil || rawMs > 250 || (typeof document !== 'undefined' && document.hidden)) { Q.samples.length = 0; return; }
   Q.samples.push(rawMs);
   if (Q.samples.length < 90) return;

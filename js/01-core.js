@@ -13,18 +13,16 @@ const cv = $('game'), ov = $('overlay'), octx = ov.getContext('2d');
 
 /* ---------- renderer & scene ---------- */
 let DPR = Math.min(window.devicePixelRatio || 1, 2);
-// Quality tiers for the adaptive governor in 11-render-boot.js. Tier 0 is full quality; slower phones step
-// down: the 3D scene renders at a fraction of the screen's pixel ratio (the HUD stays sharp), then the
-// shadow map halves. `?q=0..3` in the URL pins a tier; `?fps` shows a small frame-rate readout.
+// Quality tiers. Tier 0 (full quality) is always the default: on Kevin's phone a lower render scale made the
+// picture soft and shimmery without raising the frame rate, so nothing steps down automatically.
+// `?q=0..3` in the URL forces a tier for testing; `?fps` shows a small frame-rate readout.
 const QTIERS = [{ rs: 1, sh: 4096 }, { rs: 0.85, sh: 4096 }, { rs: 0.75, sh: 2048 }, { rs: 0.62, sh: 2048 }];
 const URLQ = (typeof location !== 'undefined' && location.search) || '';
 const QPARAM = /[?&]q=([0-3])/.exec(URLQ);
 let qTier = QPARAM ? +QPARAM[1] : 0;
 // pixel ratio the 3D scene renders at (never below 1 unless the screen itself is below 1)
 const sceneDPR = () => Math.max(Math.min(DPR, 1), DPR * QTIERS[qTier].rs);
-// antialias off: the scene renders into an offscreen target and the canvas only ever shows one full-screen
-// post-processing quad, so canvas MSAA cost memory and bandwidth for nothing
-const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
 renderer.setPixelRatio(sceneDPR());
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
